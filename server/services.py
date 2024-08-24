@@ -1,6 +1,7 @@
 # services.py
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import models, schemas
 from typing import List, Optional
 import chromadb
@@ -23,8 +24,7 @@ class FavoriteService:
             folder_id=favorite.folder_id
         )
         db.add(db_favorite)
-        db.commit()
-        db.refresh(db_favorite)
+        db.flush()  # This will assign an ID to db_favorite without committing the transaction
 
         # Add tags
         if favorite.tags:
@@ -35,13 +35,36 @@ class FavoriteService:
                         logger.info(f"Creating new tag: {tag_name}")
                         tag = models.Tag(name=tag_name)
                         db.add(tag)
-                        db.commit()
-                    db_favorite.tags.append(tag)
+                        db.flush()
+                    
+                    # Check if the association already exists
+                    existing_association = db.query(models.favorite_tags).filter_by(
+                        favorite_id=db_favorite.id, tag_id=tag.id
+                    ).first()
+                    
+                    if not existing_association:
+                        db_favorite.tags.append(tag)
+                    else:
+                        logger.info(f"Tag {tag_name} already associated with favorite {db_favorite.id}")
+                except IntegrityError as e:
+                    logger.error(f"Error adding tag {tag_name}: {str(e)}")
+                    db.rollback()
                 except Exception as e:
-                    logger.error(f"Error adding tag {tag_name}: {str(e)}", exc_info=True)
-            db.commit()
+                    logger.error(f"Unexpected error adding tag {tag_name}: {str(e)}")
+                    db.rollback()
 
-        logger.info(f"Favorite created successfully: {db_favorite.id}")
+        try:
+            db.commit()
+            logger.info(f"Favorite created successfully: {db_favorite.id}")
+        except IntegrityError as e:
+            logger.error(f"IntegrityError committing favorite: {str(e)}")
+            db.rollback()
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error committing favorite: {str(e)}")
+            db.rollback()
+            raise
+
         return db_favorite
 
     def get_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:

@@ -2,6 +2,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
 import asyncio
 import uuid
@@ -44,6 +45,9 @@ async def create_favorite_background(task_id: str, favorite: schemas.FavoriteCre
         created_favorite = favorite_service.create_favorite(db, favorite)
         task_status[task_id] = {"status": "completed", "favorite_id": str(created_favorite.id)}
         logger.info(f"Favorite created successfully: {created_favorite.id}")
+    except IntegrityError as e:
+        logger.error(f"IntegrityError in create_favorite_background: {str(e)}")
+        task_status[task_id] = {"status": "failed", "error": f"IntegrityError: {str(e)}"}
     except Exception as e:
         logger.error(f"Error in create_favorite_background: {str(e)}", exc_info=True)
         task_status[task_id] = {"status": "failed", "error": str(e)}
