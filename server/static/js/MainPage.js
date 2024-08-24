@@ -12,11 +12,11 @@ const MainPage = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedFolder && selectedFolder.id) {
+    if (selectedFolder) {
       console.log('Selected folder:', selectedFolder);
-      fetchFavorites(selectedFolder.id);
+      fetchFavoritesForFolder(selectedFolder);
     } else {
-      setFavorites([]);
+      fetchAllFavorites();
     }
   }, [selectedFolder]);
 
@@ -36,18 +36,33 @@ const MainPage = () => {
     }
   };
 
-  const fetchFavorites = async (folderId) => {
-    if (!folderId) return;
+  const fetchAllFavorites = async () => {
     try {
-      const response = await fetch(`/api/folders/${folderId}/favorites`);
+      const response = await fetch('/api/favorites');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Fetched favorites:', data);
+      console.log('Fetched all favorites:', data);
       setFavorites(data || []);
     } catch (error) {
-      console.error('Error fetching favorites:', error);
+      console.error('Error fetching all favorites:', error);
+      setError('Failed to fetch favorites. Please try again later.');
+      setFavorites([]);
+    }
+  };
+
+  const fetchFavoritesForFolder = async (folder) => {
+    try {
+      const response = await fetch(`/api/folders/${folder.id}/favorites?include_children=true`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Fetched favorites for folder:', data);
+      setFavorites(data || []);
+    } catch (error) {
+      console.error('Error fetching favorites for folder:', error);
       setError('Failed to fetch favorites. Please try again later.');
       setFavorites([]);
     }
@@ -96,7 +111,7 @@ const MainPage = () => {
     ),
     React.createElement('div', { className: 'w-3/4 p-4 overflow-y-auto' },
       React.createElement('h2', { className: 'text-2xl font-bold mb-4' },
-        selectedFolder ? selectedFolder.name : 'Select a folder'
+        selectedFolder ? selectedFolder.name : 'All Favorites'
       ),
       React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' },
         favorites.map(favorite => 
