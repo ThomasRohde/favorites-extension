@@ -37,14 +37,8 @@ async def create_favorite_background(task_id: str, favorite: schemas.FavoriteCre
         # Suggest folder based on summary
         if not favorite.folder_id:
             logger.info(f"Suggesting folder for {favorite.url}")
-            try:
-                suggested_folder_id = await nlp_service.suggest_folder(db, favorite.summary)
-                if folder_service.get_folder(db, suggested_folder_id):
-                    favorite.folder_id = suggested_folder_id
-                else:
-                    logger.warning(f"Suggested folder ID {suggested_folder_id} does not exist. Using default folder.")
-            except Exception as e:
-                logger.error(f"Error suggesting folder: {str(e)}. Using default folder.")
+            suggested_folder_id = await nlp_service.suggest_folder(db, favorite.summary)
+            favorite.folder_id = suggested_folder_id
         
         logger.info(f"Creating favorite in database: {favorite}")
         created_favorite = favorite_service.create_favorite(db, favorite)
@@ -53,7 +47,7 @@ async def create_favorite_background(task_id: str, favorite: schemas.FavoriteCre
     except Exception as e:
         logger.error(f"Error in create_favorite_background: {str(e)}", exc_info=True)
         task_status[task_id] = {"status": "failed", "error": str(e)}
-        
+
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     try:

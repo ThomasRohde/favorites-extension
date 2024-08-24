@@ -261,10 +261,10 @@ Remember to adjust the number of tags based on the content of the summary, ensur
    - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
 
 4. Based on your analysis, provide your suggestion in one of these two formats:
-   - If an existing folder is appropriate: ID: [number]
-   - If a new folder is needed: NEW: [folder name]
+   - If an existing folder is appropriate: [number]
+   - If a new folder is needed: [folder name]
 
-5. IMPORTANT: Your response must contain ONLY the folder ID or NEW suggestion. Do not include any explanations, justifications, or additional text.
+5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text.
 
 Remember, your goal is to provide the most accurate categorization for the webpage based on its summary and the existing folder structure. Be concise and precise in your output."""
 
@@ -273,23 +273,23 @@ Remember, your goal is to provide the most accurate categorization for the webpa
 
         logger.info(f"Folder suggestion: {suggestion}")
 
-        if suggestion.startswith("NEW:"):
-            new_folder_name = suggestion.split(":", 1)[1].strip()
+        try:
+            # Try to convert the suggestion to an integer (existing folder ID)
+            folder_id = int(suggestion)
+            if folder_service.get_folder(db, folder_id):
+                return folder_id
+            else:
+                logger.warning(f"Suggested folder ID {folder_id} does not exist. Using root folder.")
+                return folder_structure['id']
+        except ValueError:
+            # If conversion fails, treat it as a new folder name
+            new_folder_name = suggestion
             db_folder = models.Folder(name=new_folder_name, parent_id=folder_structure['id'])
             db.add(db_folder)
             db.commit()
             db.refresh(db_folder)
             return db_folder.id
-        elif suggestion.startswith("ID:"):
-            try:
-                return int(suggestion.split(":", 1)[1].strip())
-            except (ValueError, IndexError):
-                logger.warning(f"Invalid folder ID suggestion: {suggestion}. Using root folder.")
-                return folder_structure['id']
-        else:
-            logger.warning(f"Unexpected folder suggestion format: {suggestion}. Using root folder.")
-            return folder_structure['id']
-
+        
 # Initialize services
 favorite_service = FavoriteService()
 folder_service = FolderService()
