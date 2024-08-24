@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy
+chromadb
+pydantic
+beautifulsoup4
+requests
+python-multipart
+python-jose
+passlib
+bcrypt
+pywin32; sys_platform == "win32"
+ollama
