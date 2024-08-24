@@ -14,16 +14,16 @@ router = APIRouter()
 def create_folder(folder: schemas.FolderCreate, db: Session = Depends(get_db)):
     return folder_service.create_folder(db, folder)
 
-@router.get("/{folder_id}", response_model=schemas.FolderWithChildren)
-def read_folder(folder_id: int, db: Session = Depends(get_db)):
-    db_folder = folder_service.get_folder(db, folder_id)
-    if db_folder is None:
+@router.get("/{folder_id}/favorites", response_model=List[schemas.Favorite])
+def get_folder_favorites(folder_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    favorites = folder_service.get_folder_favorites(db, folder_id, skip, limit)
+    if favorites is None:
         raise HTTPException(status_code=404, detail="Folder not found")
-    return db_folder
+    return favorites
 
-@router.get("/", response_model=List[schemas.FolderWithChildren])
-def read_folders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return folder_service.get_folders(db, skip=skip, limit=limit)
+@router.get("/", response_model=List[dict])
+def read_folders(db: Session = Depends(get_db)):
+    return folder_service.get_folder_structure(db)
 
 @router.put("/{folder_id}", response_model=schemas.Folder)
 def update_folder(folder_id: int, folder: schemas.FolderCreate, db: Session = Depends(get_db)):

@@ -1,6 +1,6 @@
 # services.py
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 import models, schemas
 from typing import List, Optional
@@ -115,7 +115,7 @@ class FolderService:
         return db.query(models.Folder).filter(models.Folder.id == folder_id).first()
 
     def get_folders(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Folder]:
-        return db.query(models.Folder).offset(skip).limit(limit).all()
+        return db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).offset(skip).limit(limit).all()
 
     def update_folder(self, db: Session, folder_id: int, folder: schemas.FolderCreate) -> Optional[models.Folder]:
         db_folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
@@ -143,8 +143,23 @@ class FolderService:
             db.commit()
         return db_folder
 
-    def get_folder_structure(self, db: Session) -> models.Folder:
-        return db.query(models.Folder).filter(models.Folder.parent_id == None).first()
+    def get_folder_structure(self, db: Session):
+        def build_structure(folder):
+            return {
+                "id": folder.id,
+                "name": folder.name,
+                "children": [build_structure(child) for child in folder.children if isinstance(child, models.Folder)]
+            }
+
+        root_folders = db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).all()
+        return [build_structure(folder) for folder in root_folders]
+
+    
+    def get_folder_favorites(self, db: Session, folder_id: int, skip: int = 0, limit: int = 100):
+        folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        if folder:
+            return db.query(models.Favorite).filter(models.Favorite.folder_id == folder_id).offset(skip).limit(limit).all()
+        return None
 
 # Tag Service
 class TagService:
