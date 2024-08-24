@@ -172,16 +172,14 @@ class TagService:
 # NLP Service
 class NLPService:
     async def summarize_content(self, url: str) -> str:
-        # Fetch the content
         response = requests.get(url)
         soup = BeautifulSoup(response.content, 'html.parser')
         content = soup.get_text()
 
-        # Use Ollama to summarize
         prompt = f"""You will be given the content of a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the webpage content:
 
 <webpage_content>
-{content}
+{content[:3000]}  # Limit content to first 3000 characters
 </webpage_content>
 
 Please create a summary of 2-3 sentences that describes the webpage and its main topic or purpose. Your summary should:
@@ -189,18 +187,13 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 1. Identify the type of webpage (e.g., article, product page, blog post, etc.)
 2. Explain the main subject or theme of the content
 3. Highlight any key features or important information presented on the page
-4. If the webpage is part of an aggregation site, with many different pages, and the site has decoration around the page content, e.g., GitHub, do not include the parent content in the summary
 
 Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. DO NOT write anything but the summary."""
-        
+
         response = ollama.generate(model='phi3.5', prompt=prompt)
         return response['response']
 
-    async def suggest_tags(self, url: str) -> List[str]:
-        # Fetch and summarize content
-        summary = await self.summarize_content(url)
-
-        # Use Ollama to suggest tags
+    async def suggest_tags(self, summary: str) -> List[str]:
         prompt = f"""You are tasked with suggesting 3-5 relevant tags for the following summary:
 
 <summary>
@@ -221,7 +214,7 @@ Example output format:
 tag1, tag2, tag3, tag4, tag5
 
 Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags."""
-        
+
         response = ollama.generate(model='phi3.5', prompt=prompt)
         tags = response['response'].split(',')
         return [tag.strip() for tag in tags]
@@ -244,15 +237,10 @@ Remember to adjust the number of tags based on the content of the summary, ensur
             result += self.format_folder_structure(child, level + 1)
         return result
 
-    async def suggest_folder(self, db: Session, url: str) -> int:
-        # Fetch and summarize content
-        summary = await self.summarize_content(url)
-
-        # Get the complete folder structure
+    async def suggest_folder(self, db: Session, summary: str) -> int:
         folder_structure = self.get_folder_structure(db)
         formatted_structure = self.format_folder_structure(folder_structure)
 
-        # Use Ollama to suggest a folder
         prompt = f"""You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
 
 1. First, you will be presented with a summary of a webpage:
@@ -264,7 +252,7 @@ Remember to adjust the number of tags based on the content of the summary, ensur
 2. Next, you will be given the existing folder structure:
 
 <folder_structure>
-{folder_structure}
+{formatted_structure}
 </folder_structure>
 
 3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
@@ -283,21 +271,24 @@ Remember, your goal is to provide the most accurate categorization for the webpa
         response = ollama.generate(model='phi3.5', prompt=prompt)
         suggestion = response['response'].strip()
 
+        logger.info(f"Folder suggestion: {suggestion}")
+
         if suggestion.startswith("NEW:"):
-            # Create a new folder
             new_folder_name = suggestion.split(":", 1)[1].strip()
-            db_folder = models.Folder(name=new_folder_name, parent_id=folder_structure['id'])  # Set parent as root
+            db_folder = models.Folder(name=new_folder_name, parent_id=folder_structure['id'])
             db.add(db_folder)
             db.commit()
             db.refresh(db_folder)
             return db_folder.id
-        else:
-            # Return the suggested folder ID
+        elif suggestion.startswith("ID:"):
             try:
                 return int(suggestion.split(":", 1)[1].strip())
-            except ValueError:
-                # If the LLM didn't return a valid ID, default to the root folder
+            except (ValueError, IndexError):
+                logger.warning(f"Invalid folder ID suggestion: {suggestion}. Using root folder.")
                 return folder_structure['id']
+        else:
+            logger.warning(f"Unexpected folder suggestion format: {suggestion}. Using root folder.")
+            return folder_structure['id']
 
 # Initialize services
 favorite_service = FavoriteService()

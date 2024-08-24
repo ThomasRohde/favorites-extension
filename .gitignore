@@ -1,1 +1,3 @@
 .aider*
+server/favorites.db
+*.db
