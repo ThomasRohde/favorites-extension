@@ -212,13 +212,38 @@ class NLPService:
     async def summarize_content(self, url: str) -> str:
         response = requests.get(url)
         soup = BeautifulSoup(response.content, 'html.parser')
-        content = soup.get_text()
 
-        prompt = f"""You will be given the content of a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the webpage content:
+        # Extract meta information
+        meta_description = soup.find('meta', attrs={'name': 'description'})
+        meta_keywords = soup.find('meta', attrs={'name': 'keywords'})
+        og_title = soup.find('meta', attrs={'property': 'og:title'})
+        og_description = soup.find('meta', attrs={'property': 'og:description'})
 
-<webpage_content>
-{content[:3000]}  # Limit content to first 3000 characters
-</webpage_content>
+        # Combine meta information
+        meta_info = ""
+        if meta_description:
+            meta_info += f"Description: {meta_description['content']}\n"
+        if meta_keywords:
+            meta_info += f"Keywords: {meta_keywords['content']}\n"
+        if og_title:
+            meta_info += f"Title: {og_title['content']}\n"
+        if og_description:
+            meta_info += f"OG Description: {og_description['content']}\n"
+
+        # If meta information is insufficient, scrape content
+        if len(meta_info.strip()) < 100:
+            content = soup.get_text()
+            content = ' '.join(content.split())  # Remove extra whitespace
+            content = content[:3000]  # Limit content to first 3000 characters
+        else:
+            content = ""
+
+        prompt = f"""You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
+
+<webpage_info>
+{meta_info}
+{content}
+</webpage_info>
 
 Please create a summary of 2-3 sentences that describes the webpage and its main topic or purpose. Your summary should:
 
@@ -226,11 +251,11 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 2. Explain the main subject or theme of the content
 3. Highlight any key features or important information presented on the page
 
-Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. DO NOT write anything but the summary."""
+Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
 
         response = ollama.generate(model='phi3.5', prompt=prompt)
         return response['response']
-
+    
     async def suggest_tags(self, summary: str) -> List[str]:
         prompt = f"""You are tasked with suggesting 3-5 relevant tags for the following summary:
 
@@ -251,7 +276,8 @@ Provide your answer as a comma-separated list of tags, without any additional te
 Example output format:
 tag1, tag2, tag3, tag4, tag5
 
-Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags."""
+Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
+IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!"""
 
         response = ollama.generate(model='phi3.5', prompt=prompt)
         tags = response['response'].split(',')
