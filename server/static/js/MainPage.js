@@ -6,6 +6,7 @@ const MainPage = () => {
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
 
   useEffect(() => {
     fetchFolders();
@@ -29,7 +30,6 @@ const MainPage = () => {
       }
       const data = await response.json();
       console.log('Fetched folders:', data);
-      // Rename "Root" to "Favorites"
       const updatedData = data.map(folder => 
         folder.name === "Root" ? { ...folder, name: "Favorites" } : folder
       );
@@ -86,6 +86,18 @@ const MainPage = () => {
     }));
   };
 
+  const toggleDescription = (favoriteId) => {
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [favoriteId]: !prev[favoriteId]
+    }));
+  };
+
+  const truncateText = (text, maxLength) => {
+    if (text.length <= maxLength) return text;
+    return text.substr(0, maxLength) + '...';
+  };
+
   const renderFolderTree = (folder) => {
     if (!folder || folder.id == null) return null;
     const isExpanded = expandedFolders[folder.id];
@@ -125,14 +137,21 @@ const MainPage = () => {
       React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' },
         favorites.map(favorite => 
           React.createElement('div', { key: favorite.id, className: 'bg-white rounded-lg shadow-md p-4' },
-            React.createElement('h3', { className: 'text-lg font-semibold mb-2' }, favorite.title),
             React.createElement('a', {
               href: favorite.url,
               target: '_blank',
               rel: 'noopener noreferrer',
-              className: 'text-blue-500 hover:underline mb-2 block'
-            }, favorite.url),
-            React.createElement('p', { className: 'text-gray-600 mb-2' }, favorite.summary),
+              className: 'text-lg font-semibold text-blue-600 hover:underline mb-2 block'
+            }, favorite.title),
+            React.createElement('div', { className: 'text-gray-600 mb-2' },
+              expandedDescriptions[favorite.id] 
+                ? favorite.summary
+                : truncateText(favorite.summary, 100),
+              React.createElement('button', {
+                onClick: () => toggleDescription(favorite.id),
+                className: 'text-blue-500 hover:underline ml-2'
+              }, expandedDescriptions[favorite.id] ? 'Read less' : 'Read more')
+            ),
             React.createElement('div', { className: 'flex flex-wrap' },
               (favorite.tags || []).map(tag => 
                 React.createElement('span', {
