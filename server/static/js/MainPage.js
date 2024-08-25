@@ -7,6 +7,8 @@ const MainPage = () => {
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
+  const [newFolderName, setNewFolderName] = useState('');
+  const [hoveredFolder, setHoveredFolder] = useState(null);
 
   useEffect(() => {
     fetchFolders();
@@ -98,12 +100,109 @@ const MainPage = () => {
     return text.substr(0, maxLength) + '...';
   };
 
+  const createFolder = async () => {
+    if (!newFolderName.trim()) {
+      setError('Please enter a folder name.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/folders/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          name: newFolderName,
+          parent_id: selectedFolder ? selectedFolder.id : null
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      setNewFolderName('');
+      fetchFolders();
+      setError(null);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      setError('Failed to create folder. Please try again later.');
+    }
+  };
+
+  const fetchFolderDetails = async (folderId) => {
+    try {
+      const response = await fetch(`/api/folders/${folderId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching folder details:', error);
+      throw error;
+    }
+  };
+
+  const findFolderRecursive = (folders, id) => {
+    for (let folder of folders) {
+      if (folder.id === id) {
+        return folder;
+      }
+      if (folder.children && folder.children.length > 0) {
+        const found = findFolderRecursive(folder.children, id);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  };
+
+  const deleteFolder = async (folderId) => {
+    if (folderId === null) {
+      setError('Cannot delete an invalid folder.');
+      return;
+    }
+    
+    const folderToDelete = findFolderRecursive(folders, folderId);
+    
+    if (!folderToDelete) {
+      setError('Folder not found. It may have been already deleted.');
+      return;
+    }
+    
+    if (folderToDelete.name === "Favorites") {
+      setError('Cannot delete the root folder.');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      await fetchFolders();
+      if (selectedFolder && selectedFolder.id === folderId) {
+        setSelectedFolder(null);
+      }
+      setError(null); // Clear any previous errors
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      setError('Failed to delete folder. Please try again later.');
+    }
+  };
+
   const renderFolderTree = (folder) => {
     if (!folder || folder.id == null) return null;
     const isExpanded = expandedFolders[folder.id];
     const hasChildren = folder.children && folder.children.length > 0;
 
-    return React.createElement('div', { key: folder.id, className: 'ml-4' },
+    return React.createElement('div', { 
+      key: folder.id, 
+      className: 'ml-4',
+      onMouseEnter: () => setHoveredFolder(folder.id),
+      onMouseLeave: () => setHoveredFolder(null)
+    },
       React.createElement('div', {
         className: `flex items-center cursor-pointer p-2 hover:bg-gray-100 ${
           selectedFolder && selectedFolder.id === folder.id ? 'bg-blue-100' : ''
@@ -114,7 +213,14 @@ const MainPage = () => {
           className: 'mr-2', 
           onClick: (e) => toggleFolder(folder.id, e)
         }, hasChildren ? (isExpanded ? '📂' : '📁') : '📄'),
-        React.createElement('span', null, folder.name)
+        React.createElement('span', { className: 'flex-grow' }, folder.name),
+        folder.name !== "Favorites" && hoveredFolder === folder.id && React.createElement('button', {
+          onClick: (e) => {
+            e.stopPropagation();
+            deleteFolder(folder.id);
+          },
+          className: 'text-red-500 hover:text-red-700'
+        }, '🗑️')
       ),
       isExpanded && hasChildren && 
         React.createElement('div', { className: 'ml-4' },
@@ -126,10 +232,24 @@ const MainPage = () => {
   return React.createElement('div', { className: 'flex h-screen bg-gray-100' },
     React.createElement('div', { className: 'w-1/4 bg-white p-4 overflow-y-auto' },
       React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Folders'),
-      error ? React.createElement('p', { className: 'text-red-500' }, error) : 
-        folders.length > 0 ? folders.map(renderFolderTree) :
+      React.createElement('div', { className: 'mb-4' },
+        React.createElement('input', {
+          type: 'text',
+          value: newFolderName,
+          onChange: (e) => setNewFolderName(e.target.value),
+          placeholder: 'New folder name',
+          className: 'border p-2 w-full mb-2'
+        }),
+        React.createElement('button', {
+          onClick: createFolder,
+          className: 'bg-blue-500 text-white p-2 rounded hover:bg-blue-600 w-full'
+        }, 'Create Folder')
+      ),
+      error && React.createElement('p', { className: 'text-red-500 mb-4' }, error),
+      folders.length > 0 ? folders.map(renderFolderTree) :
         React.createElement('p', null, 'No folders found')
     ),
+
     React.createElement('div', { className: 'w-3/4 p-4 overflow-y-auto' },
       React.createElement('h2', { className: 'text-2xl font-bold mb-4' },
         selectedFolder ? selectedFolder.name : 'All Favorites'
