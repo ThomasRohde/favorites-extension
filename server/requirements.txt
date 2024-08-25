@@ -11,3 +11,7 @@ passlib
 bcrypt
 pywin32; sys_platform == "win32"
 ollama
+jinja2
+pytest
+httpx
+aiohttp
