@@ -163,25 +163,12 @@ const MainPage = () => {
   const getFolderPath = (folderId) => {
     const path = [];
     let currentFolder = findFolderRecursive(folders, folderId);
-    while (currentFolder) {
-      path.unshift(currentFolder.name);
+    
+    while (currentFolder && currentFolder.name !== "Favorites") {
+      path.unshift(currentFolder);
       currentFolder = findFolderRecursive(folders, currentFolder.parent_id);
     }
-    return path.join(' > ');
-  };
-
-
-  const fetchFolderDetails = async (folderId) => {
-    try {
-      const response = await fetch(`/api/folders/${folderId}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching folder details:', error);
-      throw error;
-    }
+    return path.map(folder => folder.name).join(' > ');
   };
 
   const findFolderRecursive = (folders, id) => {

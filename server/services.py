@@ -140,6 +140,8 @@ class FolderService:
             return {
                 "id": folder.id,
                 "name": folder.name,
+                "parent_id": folder.parent_id,
+                "description": folder.description, 
                 "children": [build_structure(child) for child in folder.children if isinstance(child, models.Folder)]
             }
 
