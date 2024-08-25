@@ -132,3 +132,5 @@ cython_debug/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+node_modules/
