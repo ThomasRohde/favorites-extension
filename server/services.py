@@ -10,9 +10,10 @@ import ollama
 import requests
 from bs4 import BeautifulSoup
 import logging
+import re
+from typing import Union
 
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) 
 
 class FavoriteService:
     def create_favorite(self, db: Session, favorite: schemas.FavoriteCreate) -> models.Favorite:
@@ -250,6 +251,7 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 1. Identify the type of webpage (e.g., article, product page, blog post, etc.)
 2. Explain the main subject or theme of the content
 3. Highlight any key features or important information presented on the page
+4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
 
 Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
 
@@ -280,8 +282,12 @@ Remember to adjust the number of tags based on the content of the summary, ensur
 IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!"""
 
         response = ollama.generate(model='phi3.5', prompt=prompt)
-        tags = response['response'].split(',')
-        return [tag.strip() for tag in tags]
+        # Clean up the response: remove everything after the first newline and split by comma
+        cleaned_response = response['response'].split('\n')[0]
+        tags = cleaned_response.split(',')
+        
+        # Strip whitespace and filter out any empty tags
+        return [tag.strip() for tag in tags if tag.strip()]
 
     def get_folder_structure(self, db: Session):
         def build_structure(folder, level=0):
@@ -324,35 +330,50 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
    - Are there key words or concepts in the summary that align with folder names?
    - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
 
-4. Based on your analysis, provide your suggestion in one of these two formats:
+4. Based on your analysis, provide your suggestion in one of these formats:
    - If an existing folder is appropriate: [number]
    - If a new folder is needed: [folder name]
 
-5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text.
-
-Remember, your goal is to provide the most accurate categorization for the webpage based on its summary and the existing folder structure. Be concise and precise in your output."""
+5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text."""
 
         response = ollama.generate(model='phi3.5', prompt=prompt)
         suggestion = response['response'].strip()
 
-        logger.info(f"Folder suggestion: {suggestion}")
+        logger.info(f"Raw folder suggestion: {suggestion}")
 
-        try:
-            # Try to convert the suggestion to an integer (existing folder ID)
-            folder_id = int(suggestion)
-            if folder_service.get_folder(db, folder_id):
-                return folder_id
+        # Try to extract a folder ID or name
+        folder_id_or_name = self.parse_folder_suggestion(suggestion)
+
+        if isinstance(folder_id_or_name, int):
+            # Check if the folder ID exists
+            if folder_service.get_folder(db, folder_id_or_name):
+                return folder_id_or_name
             else:
-                logger.warning(f"Suggested folder ID {folder_id} does not exist. Using root folder.")
-                return folder_structure['id']
-        except ValueError:
-            # If conversion fails, treat it as a new folder name
-            new_folder_name = suggestion
-            db_folder = models.Folder(name=new_folder_name, parent_id=folder_structure['id'])
-            db.add(db_folder)
-            db.commit()
-            db.refresh(db_folder)
-            return db_folder.id
+                logger.warning(f"Suggested folder ID {folder_id_or_name} does not exist. Creating a new folder.")
+                return self.create_new_folder(db, folder_structure['id'], suggestion)
+        elif isinstance(folder_id_or_name, str):
+            # Create a new folder with the suggested name
+            return self.create_new_folder(db, folder_structure['id'], folder_id_or_name)
+        else:
+            logger.warning(f"Could not parse folder suggestion: {suggestion}. Creating a new folder.")
+            return self.create_new_folder(db, folder_structure['id'], "Uncategorized")
+
+    def parse_folder_suggestion(self, suggestion: str) -> Union[int, str, None]:
+        # Try to extract a folder ID
+        id_match = re.search(r'\((\d+)\)|\d+', suggestion)
+        if id_match:
+            return int(id_match.group(1) if id_match.group(1) else id_match.group(0))
+
+        # If no ID is found, return the suggestion as a new folder name
+        return suggestion.strip()
+
+    def create_new_folder(self, db: Session, parent_id: int, folder_name: str) -> int:
+        db_folder = models.Folder(name=folder_name, parent_id=parent_id)
+        db.add(db_folder)
+        db.commit()
+        db.refresh(db_folder)
+        logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
+        return db_folder.id
         
 # Initialize services
 favorite_service = FavoriteService()
