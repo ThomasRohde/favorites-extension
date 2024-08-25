@@ -4,69 +4,65 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 import models, schemas
 from typing import List, Optional
-import chromadb
-from chromadb.config import Settings
-import ollama
 import requests
 from bs4 import BeautifulSoup
 import logging
 import re
 from typing import Union
+from task_queue import task_queue
+from database import SessionLocal, engine
+import asyncio
+import ollama
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 class FavoriteService:
-    def create_favorite(self, db: Session, favorite: schemas.FavoriteCreate) -> models.Favorite:
-        logger.info(f"Creating favorite: {favorite}")
-        db_favorite = models.Favorite(
-            url=str(favorite.url),
-            title=favorite.title,
-            summary=favorite.summary,
-            folder_id=favorite.folder_id
-        )
-        db.add(db_favorite)
-        db.flush()  # This will assign an ID to db_favorite without committing the transaction
-
-        # Add tags
-        if favorite.tags:
-            for tag_name in favorite.tags:
-                try:
-                    tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
-                    if not tag:
-                        logger.info(f"Creating new tag: {tag_name}")
-                        tag = models.Tag(name=tag_name)
-                        db.add(tag)
-                        db.flush()
-                    
-                    # Check if the association already exists
-                    existing_association = db.query(models.favorite_tags).filter_by(
-                        favorite_id=db_favorite.id, tag_id=tag.id
-                    ).first()
-                    
-                    if not existing_association:
-                        db_favorite.tags.append(tag)
-                    else:
-                        logger.info(f"Tag {tag_name} already associated with favorite {db_favorite.id}")
-                except IntegrityError as e:
-                    logger.error(f"Error adding tag {tag_name}: {str(e)}")
-                    db.rollback()
-                except Exception as e:
-                    logger.error(f"Unexpected error adding tag {tag_name}: {str(e)}")
-                    db.rollback()
-
+    async def create_favorite_task(self, favorite_data: dict):
+        db = SessionLocal()
         try:
-            db.commit()
-            logger.info(f"Favorite created successfully: {db_favorite.id}")
-        except IntegrityError as e:
-            logger.error(f"IntegrityError committing favorite: {str(e)}")
-            db.rollback()
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error committing favorite: {str(e)}")
-            db.rollback()
-            raise
+            favorite = schemas.FavoriteCreate(**favorite_data)
+            
+            # Generate summary if not provided
+            if not favorite.summary:
+                favorite.summary = await nlp_service.summarize_content(str(favorite.url))
+            
+            # Suggest tags if not provided
+            if not favorite.tags:
+                favorite.tags = await nlp_service.suggest_tags(favorite.summary)
+            
+            # Suggest folder if not provided
+            if not favorite.folder_id:
+                favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary)
+            
+            db_favorite = models.Favorite(
+                url=str(favorite.url),
+                title=favorite.title,
+                summary=favorite.summary,
+                folder_id=favorite.folder_id
+            )
+            db.add(db_favorite)
+            db.flush()
 
-        return db_favorite
+            for tag_name in favorite.tags:
+                tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                if not tag:
+                    tag = models.Tag(name=tag_name)
+                    db.add(tag)
+                    db.flush()
+                db_favorite.tags.append(tag)
+
+            db.commit()
+            return db_favorite.id
+        except Exception as e:
+            logger.error(f"Error creating favorite: {str(e)}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def create_favorite(self, favorite: schemas.FavoriteCreate):
+        task_id = task_queue.add_task(asyncio.run, self.create_favorite_task(favorite.dict()))
+        return {"task_id": task_id}
 
     def get_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
         return db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
@@ -82,14 +78,6 @@ class FavoriteService:
                 setattr(db_favorite, key, value)
             db.commit()
             db.refresh(db_favorite)
-
-            # Update ChromaDB
-            collection.update(
-                documents=[db_favorite.summary or ""],
-                metadatas=[{"url": db_favorite.url, "title": db_favorite.title}],
-                ids=[str(db_favorite.id)]
-            )
-
         return db_favorite
 
     def delete_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
@@ -97,10 +85,6 @@ class FavoriteService:
         if db_favorite:
             db.delete(db_favorite)
             db.commit()
-
-            # Delete from ChromaDB
-            collection.delete(ids=[str(favorite_id)])
-
         return db_favorite
 
 # Folder Service

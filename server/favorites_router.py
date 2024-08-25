@@ -1,69 +1,26 @@
 # favorites_router.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
-import asyncio
-import uuid
 from pydantic import ValidationError
-import time
 
 from database import get_db
 import schemas
 from services import favorite_service, folder_service, nlp_service
+from task_queue import task_queue
 
 router = APIRouter()
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Dictionary to store task statuses
-task_status = {}
-
-async def create_favorite_background(task_id: str, favorite: schemas.FavoriteCreate, db: Session):
-    try:
-        logger.info(f"Starting background task {task_id} for favorite creation")
-        task_status[task_id] = {"status": "processing", "progress": "0"}
-        
-        # Generate summary
-        if not favorite.summary:
-            logger.info(f"Generating summary for {favorite.url}")
-            task_status[task_id]["progress"] = "25"
-            favorite.summary = await nlp_service.summarize_content(str(favorite.url))
-        
-        # Suggest tags based on summary
-        if not favorite.tags:
-            logger.info(f"Suggesting tags for {favorite.url}")
-            task_status[task_id]["progress"] = "50"
-            favorite.tags = await nlp_service.suggest_tags(favorite.summary)
-        
-        # Suggest folder based on summary
-        if not favorite.folder_id:
-            logger.info(f"Suggesting folder for {favorite.url}")
-            task_status[task_id]["progress"] = "75"
-            suggested_folder_id = await nlp_service.suggest_folder(db, favorite.summary)
-            favorite.folder_id = suggested_folder_id
-        
-        logger.info(f"Creating favorite in database: {favorite}")
-        created_favorite = favorite_service.create_favorite(db, favorite)
-        task_status[task_id] = {"status": "completed", "progress": "100", "favorite_id": str(created_favorite.id)}
-        logger.info(f"Favorite created successfully: {created_favorite.id}")
-    except IntegrityError as e:
-        logger.error(f"IntegrityError in create_favorite_background: {str(e)}")
-        task_status[task_id] = {"status": "failed", "progress": "0", "error": f"IntegrityError: {str(e)}"}
-    except Exception as e:
-        logger.error(f"Error in create_favorite_background: {str(e)}", exc_info=True)
-        task_status[task_id] = {"status": "failed", "progress": "0", "error": str(e)}
-
 @router.post("/", response_model=Dict[str, str])
-async def create_favorite(favorite: schemas.FavoriteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def create_favorite(favorite: schemas.FavoriteCreate):
     try:
-        task_id = str(uuid.uuid4())
-        task_status[task_id] = {"status": "queued", "progress": "0"}
-        background_tasks.add_task(create_favorite_background, task_id, favorite, db)
-        return {"task_id": task_id, "status": "queued"}
+        result = favorite_service.create_favorite(favorite)
+        return {"task_id": result["task_id"]}
     except ValidationError as e:
         logger.error(f"Validation error: {e.json()}")
         raise HTTPException(status_code=422, detail=str(e))
@@ -73,21 +30,15 @@ async def create_favorite(favorite: schemas.FavoriteCreate, background_tasks: Ba
 
 @router.get("/task/{task_id}", response_model=Dict[str, str])
 async def get_task_status(task_id: str):
-    if task_id not in task_status:
+    task_status = task_queue.get_task_status(task_id)
+    if task_status is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task_status[task_id]
+    return task_status
 
 @router.get("/tasks", response_model=List[Dict[str, str]])
 async def get_tasks():
-    return [
-        {
-            "id": task_id,
-            "title": f"Processing Favorite {task_id[:8]}",
-            "status": task_info["status"],
-            "progress": task_info["progress"]
-        }
-        for task_id, task_info in task_status.items()
-    ]
+    return task_queue.get_all_tasks()
+
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
     db_favorite = favorite_service.get_favorite(db, favorite_id)
