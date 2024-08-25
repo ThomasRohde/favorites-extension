@@ -17,19 +17,22 @@ import ollama
 logger = logging.getLogger(__name__)
 
 class FavoriteService:
-    async def create_favorite_task(self, favorite_data: dict):
+    async def create_favorite_task(self, task_id: str, favorite_data: dict):
         db = SessionLocal()
         try:
             favorite = schemas.FavoriteCreate(**favorite_data)
             
+            task_queue._update_task(task_id, "processing", 10, None)
             # Generate summary if not provided
             if not favorite.summary:
                 favorite.summary = await nlp_service.summarize_content(str(favorite.url))
             
+            task_queue._update_task(task_id, "processing", 40, None)
             # Suggest tags if not provided
             if not favorite.tags:
                 favorite.tags = await nlp_service.suggest_tags(favorite.summary)
             
+            task_queue._update_task(task_id, "processing", 70, None)
             # Suggest folder if not provided
             if not favorite.folder_id:
                 favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary)
@@ -61,7 +64,11 @@ class FavoriteService:
             db.close()
 
     def create_favorite(self, favorite: schemas.FavoriteCreate):
-        task_id = task_queue.add_task(asyncio.run, self.create_favorite_task(favorite.dict()))
+        task_id = task_queue.add_task(
+            self.create_favorite_task,
+            "Create Favorite",
+            favorite.dict()
+        )
         return {"task_id": task_id}
 
     def get_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:

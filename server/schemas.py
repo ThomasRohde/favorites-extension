@@ -73,5 +73,16 @@ class FolderWithChildren(Folder):
     class Config:
         from_attributes = True
 
+class TaskStatus(BaseModel):
+    id: str
+    name: str
+    status: str
+    progress: str
+
+class TaskStatusDetail(TaskStatus):
+    result: Optional[str] = None
+
+class TaskCreate(BaseModel):
+    name: str
 
 FolderWithChildren.update_forward_refs()

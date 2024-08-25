@@ -32,30 +32,42 @@ const CreateFavoriteForm = ({ onCreateFavorite }) => {
 const TaskList = ({ tasks }) => {
   const taskListElement = document.createElement('div');
   taskListElement.className = 'bg-white rounded shadow p-4';
-  taskListElement.innerHTML = `
-    <h2 class="text-xl font-bold mb-4">Running Tasks</h2>
-    ${tasks.length === 0 
-      ? '<p>No running tasks.</p>'
-      : `<ul class="divide-y divide-gray-200">
-          ${tasks.map(task => `
-            <li class="py-4">
-              <div class="flex items-center space-x-4">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-900 truncate">${task.title}</p>
-                  <p class="text-sm text-gray-500">${task.status}</p>
-                </div>
-                <div class="inline-flex items-center text-base font-semibold text-gray-900">
-                  ${task.progress}%
-                </div>
-              </div>
-              <div class="mt-2 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${task.progress}%"></div>
-              </div>
-            </li>
-          `).join('')}
-        </ul>`
-    }
-  `;
+  
+  const titleElement = document.createElement('h2');
+  titleElement.className = 'text-xl font-bold mb-4';
+  titleElement.textContent = 'Recent Tasks';
+  taskListElement.appendChild(titleElement);
+
+  if (tasks.length === 0) {
+    const noTasksElement = document.createElement('p');
+    noTasksElement.textContent = 'No recent tasks.';
+    taskListElement.appendChild(noTasksElement);
+  } else {
+    const ulElement = document.createElement('ul');
+    ulElement.className = 'divide-y divide-gray-200';
+    
+    tasks.forEach(task => {
+      const liElement = document.createElement('li');
+      liElement.className = 'py-4';
+      liElement.innerHTML = `
+        <div class="flex items-center space-x-4">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">${task.name}</p>
+            <p class="text-sm text-gray-500">${task.status}</p>
+          </div>
+          <div class="inline-flex items-center text-base font-semibold text-gray-900">
+            ${task.progress}%
+          </div>
+        </div>
+        <div class="mt-2 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+          <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${task.progress}%"></div>
+        </div>
+      `;
+      ulElement.appendChild(liElement);
+    });
+
+    taskListElement.appendChild(ulElement);
+  }
 
   return taskListElement;
 };
@@ -111,11 +123,11 @@ class AdminPage {
       }
       const result = await response.json();
       console.log('Favorite creation started:', result);
-      // Immediately fetch tasks to show the new task
+      alert('Favorite creation task started. You can check its progress in the task list.');
       await this.fetchTasks();
     } catch (error) {
       console.error('Error creating favorite:', error);
-      // Optionally, you can show an error message to the user
+      alert('Error creating favorite. Please try again.');
     }
   }
 

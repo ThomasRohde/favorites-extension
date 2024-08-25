@@ -14,15 +14,15 @@ class TaskQueue:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS tasks
-                     (id TEXT PRIMARY KEY, status TEXT, result TEXT)''')
+                     (id TEXT PRIMARY KEY, name TEXT, status TEXT, progress TEXT, result TEXT)''')
         conn.commit()
         conn.close()
 
-    def add_task(self, task_func, *args, **kwargs):
+    def add_task(self, task_func, task_name, *args, **kwargs):
         task_id = str(uuid.uuid4())
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("INSERT INTO tasks VALUES (?, ?, ?)", (task_id, "pending", None))
+        c.execute("INSERT INTO tasks VALUES (?, ?, ?, ?, ?)", (task_id, task_name, "pending", "0", None))
         conn.commit()
         conn.close()
 
@@ -33,36 +33,49 @@ class TaskQueue:
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(task_func(*args, **kwargs))
-            self._update_task(task_id, "completed", result)
+            result = loop.run_until_complete(task_func(task_id, *args, **kwargs))
+            self._update_task(task_id, "completed", "100", result)
         except Exception as e:
-            self._update_task(task_id, "failed", str(e))
+            self._update_task(task_id, "failed", "0", str(e))
         finally:
             loop.close()
 
-    def _update_task(self, task_id, status, result):
+    def _update_task(self, task_id, status, progress, result):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("UPDATE tasks SET status = ?, result = ? WHERE id = ?",
-                  (status, json.dumps(result), task_id))
+        c.execute("UPDATE tasks SET status = ?, progress = ?, result = ? WHERE id = ?",
+                  (status, str(progress), json.dumps(result), task_id))
         conn.commit()
         conn.close()
 
     def get_task_status(self, task_id):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("SELECT status, result FROM tasks WHERE id = ?", (task_id,))
+        c.execute("SELECT name, status, progress, result FROM tasks WHERE id = ?", (task_id,))
         result = c.fetchone()
         conn.close()
         if result:
-            return {"status": result[0], "result": json.loads(result[1]) if result[1] else None}
+            return {
+                "id": task_id,
+                "name": result[0],
+                "status": result[1],
+                "progress": result[2],
+                "result": json.loads(result[3]) if result[3] else None
+            }
         return None
 
     def get_all_tasks(self):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("SELECT id, status FROM tasks")
-        tasks = [{"id": row[0], "status": row[1]} for row in c.fetchall()]
+        c.execute("SELECT id, name, status, progress FROM tasks ORDER BY rowid DESC LIMIT 10")
+        tasks = [
+            {
+                "id": row[0],
+                "name": row[1],
+                "status": row[2],
+                "progress": row[3]
+            } for row in c.fetchall()
+        ]
         conn.close()
         return tasks
 

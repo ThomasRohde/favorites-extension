@@ -21,23 +21,21 @@ async def create_favorite(favorite: schemas.FavoriteCreate):
     try:
         result = favorite_service.create_favorite(favorite)
         return {"task_id": result["task_id"]}
-    except ValidationError as e:
-        logger.error(f"Validation error: {e.json()}")
-        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/task/{task_id}", response_model=Dict[str, str])
+@router.get("/task/{task_id}", response_model=schemas.TaskStatusDetail)
 async def get_task_status(task_id: str):
     task_status = task_queue.get_task_status(task_id)
     if task_status is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task_status
+    return schemas.TaskStatusDetail(**task_status)
 
-@router.get("/tasks", response_model=List[Dict[str, str]])
+@router.get("/tasks", response_model=List[schemas.TaskStatus])
 async def get_tasks():
-    return task_queue.get_all_tasks()
+    tasks = task_queue.get_all_tasks()
+    return [schemas.TaskStatus(**task) for task in tasks]
 
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
