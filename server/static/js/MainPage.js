@@ -9,6 +9,7 @@ const MainPage = () => {
 
   useEffect(() => {
     fetchFolders();
+    fetchAllFavorites();
   }, []);
 
   useEffect(() => {
@@ -28,7 +29,11 @@ const MainPage = () => {
       }
       const data = await response.json();
       console.log('Fetched folders:', data);
-      setFolders(data || []);
+      // Rename "Root" to "Favorites"
+      const updatedData = data.map(folder => 
+        folder.name === "Root" ? { ...folder, name: "Favorites" } : folder
+      );
+      setFolders(updatedData || []);
     } catch (error) {
       console.error('Error fetching folders:', error);
       setError('Failed to fetch folders. Please try again later.');
@@ -53,6 +58,10 @@ const MainPage = () => {
   };
 
   const fetchFavoritesForFolder = async (folder) => {
+    if (folder.name === "Favorites") {
+      fetchAllFavorites();
+      return;
+    }
     try {
       const response = await fetch(`/api/folders/${folder.id}/favorites?include_children=true`);
       if (!response.ok) {
