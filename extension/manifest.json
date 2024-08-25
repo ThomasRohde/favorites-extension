@@ -6,20 +6,21 @@
   "permissions": [
     "activeTab",
     "storage",
-    "http://localhost:8000/"
+    "http://localhost:8000/",
+    "theme"
   ],
   "browser_action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "24": "icons8-favorite-24.png",
-      "48": "icons8-favorite-48.png",
-      "96": "icons8-favorite-96.png"
+      "24": "icons8-favorite-dark-24.png",
+      "48": "icons8-favorite-dark-48.png",
+      "96": "icons8-favorite-dark-96.png"
     }
   },
   "icons": {
-    "24": "icons8-favorite-24.png",
-    "48": "icons8-favorite-48.png",
-    "96": "icons8-favorite-96.png"
+    "24": "icons8-favorite-dark-24.png",
+    "48": "icons8-favorite-dark-48.png",
+    "96": "icons8-favorite-dark-96.png"
   },
   "background": {
     "scripts": ["background.js"],

@@ -63,10 +63,10 @@ class FavoriteService:
         finally:
             db.close()
 
-    def create_favorite(self, favorite: schemas.FavoriteCreate):
+    def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
             self.create_favorite_task,
-            "Create Favorite",
+            task_name,
             favorite.dict()
         )
         return {"task_id": task_id}

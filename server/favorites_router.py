@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate):
     try:
-        result = favorite_service.create_favorite(favorite)
+        task_name = f"Create Favorite: {favorite.title}"
+        result = favorite_service.create_favorite(favorite, task_name)
         return {"task_id": result["task_id"]}
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}", exc_info=True)
