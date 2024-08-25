@@ -1,0 +1,171 @@
+{
+    "name": "Root",
+    "description": "Root folder for all categories",
+    "children": [
+      {
+        "name": "Work",
+        "description": "Work-related favorites",
+        "children": [
+          {
+            "name": "Projects",
+            "description": "Work projects",
+            "children": []
+          },
+          {
+            "name": "Tools",
+            "description": "Work-related tools"
+          },
+          {
+            "name": "References",
+            "description": "Work-related references"
+          }
+        ]
+      },
+      {
+        "name": "Development",
+        "description": "Development-related favorites",
+        "children": [
+          {
+            "name": "Languages",
+            "description": "Programming languages",
+            "children": [
+              {
+                "name": "HTML & CSS",
+                "description": "HTML and CSS resources"
+              },
+              {
+                "name": "JavaScript",
+                "description": "JavaScript resources"
+              },
+              {
+                "name": "Python",
+                "description": "Python resources"
+              },
+              {
+                "name": "PHP",
+                "description": "PHP resources"
+              }
+            ]
+          },
+          {
+            "name": "Frameworks",
+            "description": "Web frameworks",
+            "children": [
+              {
+                "name": "React",
+                "description": "React resources"
+              },
+              {
+                "name": "Angular",
+                "description": "Angular resources"
+              },
+              {
+                "name": "Vue.js",
+                "description": "Vue.js resources"
+              }
+            ]
+          },
+          {
+            "name": "Libraries",
+            "description": "Programming libraries",
+            "children": [
+              {
+                "name": "jQuery",
+                "description": "jQuery resources"
+              },
+              {
+                "name": "Bootstrap",
+                "description": "Bootstrap resources"
+              }
+            ]
+          },
+          {
+            "name": "Tools",
+            "description": "Development tools",
+            "children": [
+              {
+                "name": "IDEs",
+                "description": "Integrated Development Environments"
+              },
+              {
+                "name": "Version Control",
+                "description": "Version control systems"
+              }
+            ]
+          },
+          {
+            "name": "References",
+            "description": "Development references"
+          }
+        ]
+      },
+      {
+        "name": "Design",
+        "description": "Design-related favorites",
+        "children": [
+          {
+            "name": "Inspiration",
+            "description": "Design inspiration"
+          },
+          {
+            "name": "Tools",
+            "description": "Design tools",
+            "children": [
+              {
+                "name": "Mockups",
+                "description": "Mockup tools"
+              },
+              {
+                "name": "Wireframes",
+                "description": "Wireframe tools"
+              }
+            ]
+          },
+          {
+            "name": "References",
+            "description": "Design references"
+          }
+        ]
+      },
+      {
+        "name": "Productivity",
+        "description": "Productivity-related favorites",
+        "children": [
+          {
+            "name": "To Read",
+            "description": "Articles and resources to read"
+          },
+          {
+            "name": "To Watch",
+            "description": "Videos and presentations to watch"
+          },
+          {
+            "name": "To Try",
+            "description": "Tools and techniques to try"
+          }
+        ]
+      },
+      {
+        "name": "Personal",
+        "description": "Personal favorites",
+        "children": [
+          {
+            "name": "Hobbies",
+            "description": "Personal hobbies"
+          },
+          {
+            "name": "Travel",
+            "description": "Travel-related favorites"
+          },
+          {
+            "name": "Finance",
+            "description": "Personal finance resources"
+          }
+        ]
+      },
+      {
+        "name": "Uncategorized",
+        "description": "Uncategorized favorites"
+      }
+    ]
+  }

@@ -1,5 +1,6 @@
+import json
 import chromadb
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, DateTime, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
@@ -48,11 +49,20 @@ favorite_tags = Table('favorite_tags', Base.metadata,
     Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
 )
 
+# Define Task model
+class Task(Base):
+    __tablename__ = 'tasks'
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    progress = Column(String, nullable=False)
+    result = Column(Text)
+
 # Create tables
 Base.metadata.drop_all(engine)  # Drop existing tables
 Base.metadata.create_all(engine)
 
-print("Database initialized successfully.")
+print("Database tables initialized successfully.")
 
 # Create initial folders
 Session = sessionmaker(bind=engine)
@@ -66,27 +76,17 @@ def create_folder(name, parent=None, description=None):
     session.flush()  # This will assign an ID to the folder
     return folder
 
-# Create root folder
-root_folder = create_folder("Root", description="Root folder for all categories")
+def create_folder_structure(structure, parent=None):
+    folder = create_folder(structure['name'], parent, structure.get('description'))
+    for child in structure.get('children', []):
+        create_folder_structure(child, folder)
 
-# Create main categories
-work = create_folder("Work", root_folder, "Work-related favorites")
-personal = create_folder("Personal", root_folder, "Personal favorites")
-learning = create_folder("Learning", root_folder, "Educational resources")
-entertainment = create_folder("Entertainment", root_folder, "Entertainment-related favorites")
+# Load folder structure from JSON file
+with open('folder_structure.json', 'r') as f:
+    folder_structure = json.load(f)
 
-# Create subcategories
-create_folder("Projects", work, "Work projects")
-create_folder("Meetings", work, "Meeting notes and links")
-
-create_folder("Finance", personal, "Personal finance resources")
-create_folder("Health", personal, "Health and wellness resources")
-
-create_folder("Courses", learning, "Online courses and tutorials")
-create_folder("Books", learning, "Reading list and book resources")
-
-create_folder("Movies", entertainment, "Movie recommendations and reviews")
-create_folder("Music", entertainment, "Music playlists and resources")
+# Create folder structure
+create_folder_structure(folder_structure)
 
 session.commit()
 
@@ -101,6 +101,11 @@ def print_folder_structure(folder, level=0):
 root = session.query(Folder).filter(Folder.name == "Root").first()
 print("\nFolder structure:")
 print_folder_structure(root)
+
+# Clear task table
+session.query(Task).delete()
+session.commit()
+print("\nTask table cleared successfully.")
 
 session.close()
 
