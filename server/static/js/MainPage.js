@@ -1,5 +1,32 @@
 const { useState, useEffect } = React;
 
+const Modal = ({ isOpen, onClose, onSubmit, title, children }) => {
+  if (!isOpen) return null;
+
+  return React.createElement('div', {
+    className: 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full',
+    onClick: onClose
+  },
+    React.createElement('div', {
+      className: 'relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white',
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('h3', { className: 'text-lg font-medium leading-6 text-gray-900 mb-2' }, title),
+      children,
+      React.createElement('div', { className: 'mt-4 flex justify-end' },
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 mr-2'
+        }, 'Cancel'),
+        React.createElement('button', {
+          onClick: onSubmit,
+          className: 'px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-24'
+        }, 'Submit')
+      )
+    )
+  );
+};
+
 const MainPage = () => {
   const [folders, setFolders] = useState([]);
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -7,8 +34,10 @@ const MainPage = () => {
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
-  const [newFolderName, setNewFolderName] = useState('');
   const [hoveredFolder, setHoveredFolder] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderDescription, setNewFolderDescription] = useState('');
 
   useEffect(() => {
     fetchFolders();
@@ -113,6 +142,7 @@ const MainPage = () => {
         },
         body: JSON.stringify({ 
           name: newFolderName,
+          description: newFolderDescription,
           parent_id: selectedFolder ? selectedFolder.id : null
         }),
       });
@@ -120,6 +150,8 @@ const MainPage = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       setNewFolderName('');
+      setNewFolderDescription('');
+      setIsModalOpen(false);
       fetchFolders();
       setError(null);
     } catch (error) {
@@ -127,6 +159,17 @@ const MainPage = () => {
       setError('Failed to create folder. Please try again later.');
     }
   };
+
+  const getFolderPath = (folderId) => {
+    const path = [];
+    let currentFolder = findFolderRecursive(folders, folderId);
+    while (currentFolder) {
+      path.unshift(currentFolder.name);
+      currentFolder = findFolderRecursive(folders, currentFolder.parent_id);
+    }
+    return path.join(' > ');
+  };
+
 
   const fetchFolderDetails = async (folderId) => {
     try {
@@ -232,24 +275,14 @@ const MainPage = () => {
   return React.createElement('div', { className: 'flex h-screen bg-gray-100' },
     React.createElement('div', { className: 'w-1/4 bg-white p-4 overflow-y-auto' },
       React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Folders'),
-      React.createElement('div', { className: 'mb-4' },
-        React.createElement('input', {
-          type: 'text',
-          value: newFolderName,
-          onChange: (e) => setNewFolderName(e.target.value),
-          placeholder: 'New folder name',
-          className: 'border p-2 w-full mb-2'
-        }),
-        React.createElement('button', {
-          onClick: createFolder,
-          className: 'bg-blue-500 text-white p-2 rounded hover:bg-blue-600 w-full'
-        }, 'Create Folder')
-      ),
+      React.createElement('button', {
+        onClick: () => setIsModalOpen(true),
+        className: 'mb-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600'
+      }, '+ New Folder'),
       error && React.createElement('p', { className: 'text-red-500 mb-4' }, error),
       folders.length > 0 ? folders.map(renderFolderTree) :
         React.createElement('p', null, 'No folders found')
     ),
-
     React.createElement('div', { className: 'w-3/4 p-4 overflow-y-auto' },
       React.createElement('h2', { className: 'text-2xl font-bold mb-4' },
         selectedFolder ? selectedFolder.name : 'All Favorites'
@@ -261,8 +294,11 @@ const MainPage = () => {
               href: favorite.url,
               target: '_blank',
               rel: 'noopener noreferrer',
-              className: 'text-lg font-semibold text-blue-600 hover:underline mb-2 block'
+              className: 'text-lg font-semibold text-blue-600 hover:underline mb-1 block'
             }, favorite.title),
+            React.createElement('p', { className: 'text-xs text-gray-500 mb-2' },
+              getFolderPath(favorite.folder_id)
+            ),
             React.createElement('div', { className: 'text-gray-600 mb-2' },
               expandedDescriptions[favorite.id] 
                 ? favorite.summary
@@ -283,6 +319,26 @@ const MainPage = () => {
           )
         )
       )
+    ),
+    React.createElement(Modal, {
+      isOpen: isModalOpen,
+      onClose: () => setIsModalOpen(false),
+      onSubmit: createFolder,
+      title: 'Create New Folder'
+    },
+      React.createElement('input', {
+        type: 'text',
+        value: newFolderName,
+        onChange: (e) => setNewFolderName(e.target.value),
+        placeholder: 'Folder Name',
+        className: 'w-full p-2 mb-4 border rounded'
+      }),
+      React.createElement('textarea', {
+        value: newFolderDescription,
+        onChange: (e) => setNewFolderDescription(e.target.value),
+        placeholder: 'Folder Description (optional)',
+        className: 'w-full p-2 mb-4 border rounded'
+      })
     )
   );
 };
