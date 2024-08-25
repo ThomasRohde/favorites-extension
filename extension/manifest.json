@@ -1,0 +1,28 @@
+{
+  "manifest_version": 2,
+  "name": "Intelligent Favorites",
+  "version": "1.0",
+  "description": "Add favorites to your Intelligent Favorites system",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "http://localhost:8000/"
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "24": "icons8-favorite-24.png",
+      "48": "icons8-favorite-48.png",
+      "96": "icons8-favorite-96.png"
+    }
+  },
+  "icons": {
+    "24": "icons8-favorite-24.png",
+    "48": "icons8-favorite-48.png",
+    "96": "icons8-favorite-96.png"
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  }
+}

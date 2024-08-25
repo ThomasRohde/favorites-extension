@@ -7,6 +7,7 @@ from typing import List, Dict
 import asyncio
 import uuid
 from pydantic import ValidationError
+import time
 
 from database import get_db
 import schemas
@@ -24,41 +25,45 @@ task_status = {}
 async def create_favorite_background(task_id: str, favorite: schemas.FavoriteCreate, db: Session):
     try:
         logger.info(f"Starting background task {task_id} for favorite creation")
+        task_status[task_id] = {"status": "processing", "progress": "0"}
         
         # Generate summary
         if not favorite.summary:
             logger.info(f"Generating summary for {favorite.url}")
+            task_status[task_id]["progress"] = "25"
             favorite.summary = await nlp_service.summarize_content(str(favorite.url))
         
         # Suggest tags based on summary
         if not favorite.tags:
             logger.info(f"Suggesting tags for {favorite.url}")
+            task_status[task_id]["progress"] = "50"
             favorite.tags = await nlp_service.suggest_tags(favorite.summary)
         
         # Suggest folder based on summary
         if not favorite.folder_id:
             logger.info(f"Suggesting folder for {favorite.url}")
+            task_status[task_id]["progress"] = "75"
             suggested_folder_id = await nlp_service.suggest_folder(db, favorite.summary)
             favorite.folder_id = suggested_folder_id
         
         logger.info(f"Creating favorite in database: {favorite}")
         created_favorite = favorite_service.create_favorite(db, favorite)
-        task_status[task_id] = {"status": "completed", "favorite_id": str(created_favorite.id)}
+        task_status[task_id] = {"status": "completed", "progress": "100", "favorite_id": str(created_favorite.id)}
         logger.info(f"Favorite created successfully: {created_favorite.id}")
     except IntegrityError as e:
         logger.error(f"IntegrityError in create_favorite_background: {str(e)}")
-        task_status[task_id] = {"status": "failed", "error": f"IntegrityError: {str(e)}"}
+        task_status[task_id] = {"status": "failed", "progress": "0", "error": f"IntegrityError: {str(e)}"}
     except Exception as e:
         logger.error(f"Error in create_favorite_background: {str(e)}", exc_info=True)
-        task_status[task_id] = {"status": "failed", "error": str(e)}
+        task_status[task_id] = {"status": "failed", "progress": "0", "error": str(e)}
 
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     try:
         task_id = str(uuid.uuid4())
-        task_status[task_id] = {"status": "processing"}
+        task_status[task_id] = {"status": "queued", "progress": "0"}
         background_tasks.add_task(create_favorite_background, task_id, favorite, db)
-        return {"task_id": task_id, "status": "processing"}
+        return {"task_id": task_id, "status": "queued"}
     except ValidationError as e:
         logger.error(f"Validation error: {e.json()}")
         raise HTTPException(status_code=422, detail=str(e))
@@ -79,11 +84,10 @@ async def get_tasks():
             "id": task_id,
             "title": f"Processing Favorite {task_id[:8]}",
             "status": task_info["status"],
-            "progress": str(100 if task_info["status"] == "completed" else (0 if task_info["status"] == "failed" else 50))
+            "progress": task_info["progress"]
         }
         for task_id, task_info in task_status.items()
     ]
-
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
     db_favorite = favorite_service.get_favorite(db, favorite_id)
