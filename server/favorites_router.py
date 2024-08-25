@@ -66,12 +66,23 @@ async def create_favorite(favorite: schemas.FavoriteCreate, background_tasks: Ba
         logger.error(f"Unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/task/{task_id}", response_model=Dict[str, str])
 async def get_task_status(task_id: str):
     if task_id not in task_status:
         raise HTTPException(status_code=404, detail="Task not found")
     return task_status[task_id]
+
+@router.get("/tasks", response_model=List[Dict[str, str]])
+async def get_tasks():
+    return [
+        {
+            "id": task_id,
+            "title": f"Processing Favorite {task_id[:8]}",
+            "status": task_info["status"],
+            "progress": str(100 if task_info["status"] == "completed" else (0 if task_info["status"] == "failed" else 50))
+        }
+        for task_id, task_info in task_status.items()
+    ]
 
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
