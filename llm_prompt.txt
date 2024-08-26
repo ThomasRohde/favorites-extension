@@ -1,0 +1,3207 @@
+# Project: favorites-extension
+
+## Overview
+This project is primarily written in Python (31%), Markdown (8%), JavaScript (8%), HTML (6%), JSON (4%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+
+## Dependencies
+The main dependencies for this project are: No recognized dependency file found
+
+## Project Structure
+The following is a concise directory tree of the project, limited to 3 levels deep and excluding common non-source directories:
+
+├── server
+│   ├── main.py
+│   ├── static
+│   │   └── js
+│   │       ├── AdminPage.js
+│   │       └── MainPage.js
+│   ├── templates
+│   │   ├── admin.html
+│   │   └── index.html
+│   ├── web_router.py
+│   ├── api_test.py
+│   ├── clientTest.py
+│   ├── database.py
+│   ├── DESIGN.md
+│   ├── favorites_router.py
+│   ├── folder_structure.json
+│   ├── folders_router.py
+│   ├── initDB.py
+│   ├── llm.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── services.py
+│   ├── tags_router.py
+│   ├── task_queue.py
+│   └── testCreate.py
+├── extension
+│   ├── background.js
+│   ├── manifest.json
+│   ├── popup.html
+│   └── popup.js
+└── README.md
+
+
+## Selected Files
+The contents of specifically selected files are included below. Each file is preceded by its relative path within the project structure.
+
+## Instructions for Analysis
+When analyzing this project:
+1. Consider the overall project structure and how the selected files fit within it.
+2. Pay attention to the relationships between different files and directories.
+3. Be prepared to answer questions about specific files, overall project architecture, or potential improvements.
+4. If asked to modify or extend the project, ensure suggestions are consistent with the existing structure and style.
+
+File: server\main.py
+
+import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from database import engine, init_db
+import models
+from favorites_router import router as favorites_router
+from folders_router import router as folders_router
+from tags_router import router as tags_router
+from web_router import router as web_router
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def create_application() -> FastAPI:
+    application = FastAPI(
+        title="Intelligent Favorites Extension API",
+        description="An API for managing intelligent favorites with automatic summarization and tagging.",
+        version="1.0.0",
+        openapi_tags=[
+            {
+                "name": "favorites",
+                "description": "Operations with favorites",
+            },
+            {
+                "name": "folders",
+                "description": "Manage folders for organizing favorites",
+            },
+            {
+                "name": "tags",
+                "description": "Manage tags for categorizing favorites",
+            },
+        ],
+    )
+
+    # Set up CORS
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allows all origins
+        allow_credentials=True,
+        allow_methods=["*"],  # Allows all methods
+        allow_headers=["*"],  # Allows all headers
+    )
+
+    # Initialize database
+    init_db()
+
+    # Mount static files
+    application.mount("/static", StaticFiles(directory="static"), name="static")
+
+    # Include routers
+    application.include_router(favorites_router, prefix="/api/favorites", tags=["favorites"])
+    application.include_router(folders_router, prefix="/api/folders", tags=["folders"])
+    application.include_router(tags_router, prefix="/api/tags", tags=["tags"])
+    application.include_router(web_router, tags=["web"])
+
+    return application
+
+app = create_application()
+
+@app.get("/", tags=["root"])
+async def root():
+    logger.info("Root endpoint accessed")
+    return {"message": "Welcome to the Intelligent Favorites Extension API"}
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting the Intelligent Favorites Extension API")
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+---
+
+File: extension\background.js
+
+// Function to set the appropriate icon based on the current theme
+function setIconForTheme(isDarkTheme) {
+  const iconPath = isDarkTheme ? {
+    24: "icons8-favorite-dark-24.png",
+    48: "icons8-favorite-dark-48.png",
+    96: "icons8-favorite-dark-96.png"
+  } : {
+    24: "icons8-favorite-light-24.png",
+    48: "icons8-favorite-light-48.png",
+    96: "icons8-favorite-light-96.png"
+  };
+
+  chrome.browserAction.setIcon({ path: iconPath });
+}
+
+// Function to check if the current theme is dark
+function isDarkTheme(theme) {
+  // This is a simple check. You might need to adjust this logic
+  // depending on how you want to determine if a theme is "dark"
+  return theme && theme.colors && theme.colors.toolbar &&
+    theme.colors.toolbar.startsWith('rgb(') &&
+    parseInt(theme.colors.toolbar.split(',')[0].split('(')[1]) < 128;
+}
+
+// Listen for theme updates
+chrome.theme.onUpdated.addListener((updateInfo) => {
+  if (updateInfo.theme) {
+    setIconForTheme(isDarkTheme(updateInfo.theme));
+  }
+});
+
+// Set the initial icon when the extension is installed or updated
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.theme.getCurrent((theme) => {
+    setIconForTheme(isDarkTheme(theme));
+  });
+  console.log('Intelligent Favorites extension installed or updated.');
+});
+
+// Check and set the icon when a new browser window is created
+chrome.windows.onCreated.addListener(() => {
+  chrome.theme.getCurrent((theme) => {
+    setIconForTheme(isDarkTheme(theme));
+  });
+});
+
+// Your existing initialization code can go here
+console.log('Intelligent Favorites extension background script running.');
+
+---
+
+File: README.md
+
+# Intelligent Favorites Extension
+
+## Overview
+
+The Intelligent Favorites Extension is a sophisticated browser extension designed to enhance the bookmarking experience. It leverages advanced natural language processing techniques to automatically categorize, summarize, and tag web pages, making it easier for users to organize and retrieve their favorite content.
+
+## Features
+
+- **Automatic Summarization**: Generates concise summaries of bookmarked web pages using advanced NLP models.
+- **Intelligent Tagging**: Suggests relevant tags based on the content of the bookmarked page.
+- **Smart Folder Organization**: Recommends appropriate folders for new bookmarks based on their content.
+- **Semantic Search**: Enables users to find bookmarks using natural language queries.
+- **Browser Integration**: Seamlessly integrates with Microsoft Edge as a browser extension.
+- **Web Interface**: Provides a user-friendly web interface for managing bookmarks, folders, and tags.
+- **API Backend**: Powered by a robust FastAPI backend for efficient data management and processing.
+
+## System Architecture
+
+The system consists of two main components:
+
+1. **Backend API** (Python-based)
+   - Framework: FastAPI
+   - Database: SQLite (structured data) and Chroma.db (vector embeddings)
+   - NLP Models: 
+     - LLM: phi3.5 (via Ollama) for chat completion and summarization
+     - Embeddings: nomic-embed-text (via Ollama) for semantic search and clustering
+   - Deployment: Windows Service
+
+2. **Frontend Extension** (Microsoft Edge Extension)
+   - Technologies: HTML, CSS, JavaScript
+   - API Communication: Fetch API
+
+## Installation
+
+### Backend Setup
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-repo/intelligent-favorites.git
+   cd intelligent-favorites
+   ```
+
+2. Install required Python packages:
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. Initialize the database:
+   ```
+   python initDB.py
+   ```
+
+4. Start the FastAPI server:
+   ```
+   uvicorn main:app --reload
+   ```
+
+### Extension Setup
+
+1. Open Microsoft Edge and navigate to `edge://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select the `extension` folder from the cloned repository
+
+## Usage
+
+1. **Adding a Favorite**: 
+   - Click the extension icon in your browser
+   - Review the automatically generated title and click "Add Favorite"
+
+2. **Viewing Favorites**:
+   - Open the main page by clicking "Open Main Page" in the extension popup
+   - Browse your favorites, organized by folders and tags
+
+3. **Searching Favorites**:
+   - Use the search bar on the main page to find favorites using natural language queries
+
+4. **Managing Folders and Tags**:
+   - Use the web interface to create, edit, or delete folders and tags
+
+5. **Accessing Admin Features**:
+   - Click "Open Admin Page" in the extension popup to access advanced management features
+
+## Development
+
+- Backend code is located in the `server` directory
+- Frontend extension code is in the `extension` directory
+- Run tests using `pytest`:
+  ```
+  pytest api_test.py
+  ```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- Icons provided by [Icons8](https://icons8.com)
+- NLP models and services:
+  - [Ollama](https://ollama.ai/) - Local LLM inference
+  - [OpenAI](https://openai.com/) - Cloud-based LLM services
+  - [Anthropic](https://www.anthropic.com/) - Advanced AI models including Claude
+- Frontend libraries:
+  - [React](https://reactjs.org/)
+  - [Tailwind CSS](https://tailwindcss.com/)
+
+---
+
+File: server\static\js\AdminPage.js
+
+// AdminPage.js
+
+const CreateFavoriteForm = ({ onCreateFavorite }) => {
+  const formElement = document.createElement('form');
+  formElement.className = 'mb-8 p-4 bg-white rounded shadow';
+  formElement.innerHTML = `
+    <h2 class="text-xl font-bold mb-4">Create Favorite</h2>
+    <div class="mb-4">
+      <label for="url" class="block text-sm font-medium text-gray-700">URL</label>
+      <input type="url" id="url" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+    </div>
+    <div class="mb-4">
+      <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+      <input type="text" id="title" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+    </div>
+    <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+      Create Favorite
+    </button>
+  `;
+
+  formElement.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const url = formElement.querySelector('#url').value;
+    const title = formElement.querySelector('#title').value;
+    onCreateFavorite({ url, title });
+    formElement.reset();
+  });
+
+  return formElement;
+};
+
+const TaskList = ({ tasks }) => {
+  const taskListElement = document.createElement('div');
+  taskListElement.className = 'bg-white rounded shadow p-4';
+  
+  const titleElement = document.createElement('h2');
+  titleElement.className = 'text-xl font-bold mb-4';
+  titleElement.textContent = 'Recent Tasks';
+  taskListElement.appendChild(titleElement);
+
+  if (tasks.length === 0) {
+    const noTasksElement = document.createElement('p');
+    noTasksElement.textContent = 'No recent tasks.';
+    taskListElement.appendChild(noTasksElement);
+  } else {
+    const ulElement = document.createElement('ul');
+    ulElement.className = 'divide-y divide-gray-200';
+    
+    tasks.forEach(task => {
+      const liElement = document.createElement('li');
+      liElement.className = 'py-4';
+      liElement.innerHTML = `
+        <div class="flex items-center space-x-4">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">${task.name}</p>
+            <p class="text-sm text-gray-500">${task.status}</p>
+          </div>
+          <div class="inline-flex items-center text-base font-semibold text-gray-900">
+            ${task.progress}%
+          </div>
+        </div>
+        <div class="mt-2 w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+          <div class="bg-blue-600 h-2.5 rounded-full" style="width: ${task.progress}%"></div>
+        </div>
+      `;
+      ulElement.appendChild(liElement);
+    });
+
+    taskListElement.appendChild(ulElement);
+  }
+
+  return taskListElement;
+};
+
+class AdminPage {
+  constructor(rootElement) {
+    this.rootElement = rootElement;
+    this.tasks = [];
+    this.init();
+  }
+
+  init() {
+    this.render();
+    this.fetchTasks();
+    this.startPolling();
+  }
+
+  startPolling() {
+    this.pollingInterval = setInterval(() => this.fetchTasks(), 2000);  // Poll every 2 seconds
+  }
+
+  stopPolling() {
+    clearInterval(this.pollingInterval);
+  }
+
+  async fetchTasks() {
+    try {
+      const response = await fetch('/api/favorites/tasks');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const newTasks = await response.json();
+      if (JSON.stringify(newTasks) !== JSON.stringify(this.tasks)) {
+        this.tasks = newTasks;
+        this.updateTaskList();
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  }
+
+  async handleCreateFavorite(favoriteData) {
+    try {
+      const response = await fetch('/api/favorites/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(favoriteData),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      console.log('Favorite creation started:', result);
+      alert('Favorite creation task started. You can check its progress in the task list.');
+      await this.fetchTasks();
+    } catch (error) {
+      console.error('Error creating favorite:', error);
+      alert('Error creating favorite. Please try again.');
+    }
+  }
+
+  render() {
+    this.rootElement.innerHTML = `
+      <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8">Admin Dashboard</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div id="create-favorite-form"></div>
+          <div id="task-list"></div>
+        </div>
+      </div>
+    `;
+
+    const createFavoriteForm = CreateFavoriteForm({ onCreateFavorite: this.handleCreateFavorite.bind(this) });
+    this.rootElement.querySelector('#create-favorite-form').appendChild(createFavoriteForm);
+
+    this.updateTaskList();
+  }
+
+  updateTaskList() {
+    const taskListContainer = this.rootElement.querySelector('#task-list');
+    taskListContainer.innerHTML = '';
+    const taskList = TaskList({ tasks: this.tasks });
+    taskListContainer.appendChild(taskList);
+  }
+}
+
+// Initialize the admin page
+document.addEventListener('DOMContentLoaded', () => {
+  const rootElement = document.getElementById('root');
+  new AdminPage(rootElement);
+});
+
+---
+
+File: server\static\js\MainPage.js
+
+const { useState, useEffect } = React;
+
+const Modal = ({ isOpen, onClose, onSubmit, title, children }) => {
+  if (!isOpen) return null;
+
+  return React.createElement('div', {
+    className: 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full',
+    onClick: onClose
+  },
+    React.createElement('div', {
+      className: 'relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white',
+      onClick: e => e.stopPropagation()
+    },
+      React.createElement('h3', { className: 'text-lg font-medium leading-6 text-gray-900 mb-2' }, title),
+      children,
+      React.createElement('div', { className: 'mt-4 flex justify-end' },
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 mr-2'
+        }, 'Cancel'),
+        React.createElement('button', {
+          onClick: onSubmit,
+          className: 'px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-24'
+        }, 'Submit')
+      )
+    )
+  );
+};
+
+const MainPage = () => {
+  const [folders, setFolders] = useState([]);
+  const [expandedFolders, setExpandedFolders] = useState({});
+  const [selectedFolder, setSelectedFolder] = useState(null);
+  const [favorites, setFavorites] = useState([]);
+  const [error, setError] = useState(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+  const [hoveredFolder, setHoveredFolder] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderDescription, setNewFolderDescription] = useState('');
+
+  useEffect(() => {
+    fetchFolders();
+    fetchAllFavorites();
+  }, []);
+
+  useEffect(() => {
+    if (selectedFolder) {
+      console.log('Selected folder:', selectedFolder);
+      fetchFavoritesForFolder(selectedFolder);
+    } else {
+      fetchAllFavorites();
+    }
+  }, [selectedFolder]);
+
+  const fetchFolders = async () => {
+    try {
+      const response = await fetch('/api/folders/');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Fetched folders:', data);
+      const updatedData = data.map(folder => 
+        folder.name === "Root" ? { ...folder, name: "Favorites" } : folder
+      );
+      setFolders(updatedData || []);
+    } catch (error) {
+      console.error('Error fetching folders:', error);
+      setError('Failed to fetch folders. Please try again later.');
+      setFolders([]);
+    }
+  };
+
+  const fetchAllFavorites = async () => {
+    try {
+      const response = await fetch('/api/favorites');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Fetched all favorites:', data);
+      setFavorites(data || []);
+    } catch (error) {
+      console.error('Error fetching all favorites:', error);
+      setError('Failed to fetch favorites. Please try again later.');
+      setFavorites([]);
+    }
+  };
+
+  const fetchFavoritesForFolder = async (folder) => {
+    if (folder.name === "Favorites") {
+      fetchAllFavorites();
+      return;
+    }
+    try {
+      const response = await fetch(`/api/folders/${folder.id}/favorites?include_children=true`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Fetched favorites for folder:', data);
+      setFavorites(data || []);
+    } catch (error) {
+      console.error('Error fetching favorites for folder:', error);
+      setError('Failed to fetch favorites. Please try again later.');
+      setFavorites([]);
+    }
+  };
+
+  const toggleFolder = (folderId, e) => {
+    e.stopPropagation();
+    if (folderId == null) return;
+    setExpandedFolders(prev => ({
+      ...prev,
+      [folderId]: !prev[folderId]
+    }));
+  };
+
+  const toggleDescription = (favoriteId) => {
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [favoriteId]: !prev[favoriteId]
+    }));
+  };
+
+  const truncateText = (text, maxLength) => {
+    if (text.length <= maxLength) return text;
+    return text.substr(0, maxLength) + '...';
+  };
+
+  const createFolder = async () => {
+    if (!newFolderName.trim()) {
+      setError('Please enter a folder name.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/folders/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          name: newFolderName,
+          description: newFolderDescription,
+          parent_id: selectedFolder ? selectedFolder.id : null
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      setNewFolderName('');
+      setNewFolderDescription('');
+      setIsModalOpen(false);
+      fetchFolders();
+      setError(null);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      setError('Failed to create folder. Please try again later.');
+    }
+  };
+
+  const getFolderPath = (folderId) => {
+    const path = [];
+    let currentFolder = findFolderRecursive(folders, folderId);
+    
+    while (currentFolder && currentFolder.name !== "Favorites") {
+      path.unshift(currentFolder);
+      currentFolder = findFolderRecursive(folders, currentFolder.parent_id);
+    }
+    return path.map(folder => folder.name).join(' > ');
+  };
+
+  const findFolderRecursive = (folders, id) => {
+    for (let folder of folders) {
+      if (folder.id === id) {
+        return folder;
+      }
+      if (folder.children && folder.children.length > 0) {
+        const found = findFolderRecursive(folder.children, id);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
+  };
+
+  const deleteFolder = async (folderId) => {
+    if (folderId === null) {
+      setError('Cannot delete an invalid folder.');
+      return;
+    }
+    
+    const folderToDelete = findFolderRecursive(folders, folderId);
+    
+    if (!folderToDelete) {
+      setError('Folder not found. It may have been already deleted.');
+      return;
+    }
+    
+    if (folderToDelete.name === "Favorites") {
+      setError('Cannot delete the root folder.');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/folders/${folderId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      await fetchFolders();
+      if (selectedFolder && selectedFolder.id === folderId) {
+        setSelectedFolder(null);
+      }
+      setError(null); // Clear any previous errors
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      setError('Failed to delete folder. Please try again later.');
+    }
+  };
+
+  const renderFolderTree = (folder) => {
+    if (!folder || folder.id == null) return null;
+    const isExpanded = expandedFolders[folder.id];
+    const hasChildren = folder.children && folder.children.length > 0;
+
+    return React.createElement('div', { 
+      key: folder.id, 
+      className: 'ml-4',
+      onMouseEnter: () => setHoveredFolder(folder.id),
+      onMouseLeave: () => setHoveredFolder(null)
+    },
+      React.createElement('div', {
+        className: `flex items-center cursor-pointer p-2 hover:bg-gray-100 ${
+          selectedFolder && selectedFolder.id === folder.id ? 'bg-blue-100' : ''
+        }`,
+        onClick: () => setSelectedFolder(folder)
+      },
+        React.createElement('span', { 
+          className: 'mr-2', 
+          onClick: (e) => toggleFolder(folder.id, e)
+        }, hasChildren ? (isExpanded ? '📂' : '📁') : '📄'),
+        React.createElement('span', { className: 'flex-grow' }, folder.name),
+        folder.name !== "Favorites" && hoveredFolder === folder.id && React.createElement('button', {
+          onClick: (e) => {
+            e.stopPropagation();
+            deleteFolder(folder.id);
+          },
+          className: 'text-red-500 hover:text-red-700'
+        }, '🗑️')
+      ),
+      isExpanded && hasChildren && 
+        React.createElement('div', { className: 'ml-4' },
+          folder.children.map(childFolder => renderFolderTree(childFolder))
+        )
+    );
+  };
+
+  return React.createElement('div', { className: 'flex h-screen bg-gray-100' },
+    React.createElement('div', { className: 'w-1/4 bg-white p-4 overflow-y-auto' },
+      React.createElement('h2', { className: 'text-xl font-bold mb-4' }, 'Folders'),
+      React.createElement('button', {
+        onClick: () => setIsModalOpen(true),
+        className: 'mb-4 bg-blue-500 text-white p-2 rounded hover:bg-blue-600'
+      }, '+ New Folder'),
+      error && React.createElement('p', { className: 'text-red-500 mb-4' }, error),
+      folders.length > 0 ? folders.map(renderFolderTree) :
+        React.createElement('p', null, 'No folders found')
+    ),
+    React.createElement('div', { className: 'w-3/4 p-4 overflow-y-auto' },
+      React.createElement('h2', { className: 'text-2xl font-bold mb-4' },
+        selectedFolder ? selectedFolder.name : 'All Favorites'
+      ),
+      React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' },
+        favorites.map(favorite => 
+          React.createElement('div', { key: favorite.id, className: 'bg-white rounded-lg shadow-md p-4' },
+            React.createElement('a', {
+              href: favorite.url,
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              className: 'text-lg font-semibold text-blue-600 hover:underline mb-1 block'
+            }, favorite.title),
+            React.createElement('p', { className: 'text-xs text-gray-500 mb-2' },
+              getFolderPath(favorite.folder_id)
+            ),
+            React.createElement('div', { className: 'text-gray-600 mb-2' },
+              expandedDescriptions[favorite.id] 
+                ? favorite.summary
+                : truncateText(favorite.summary, 100),
+              React.createElement('button', {
+                onClick: () => toggleDescription(favorite.id),
+                className: 'text-blue-500 hover:underline ml-2'
+              }, expandedDescriptions[favorite.id] ? 'Read less' : 'Read more')
+            ),
+            React.createElement('div', { className: 'flex flex-wrap' },
+              (favorite.tags || []).map(tag => 
+                React.createElement('span', {
+                  key: tag.id,
+                  className: 'bg-gray-200 text-gray-700 px-1 py-0.5 rounded-full text-xs mr-1 mb-1'
+                }, tag.name)
+              )
+            )            
+          )
+        )
+      )
+    ),
+    React.createElement(Modal, {
+      isOpen: isModalOpen,
+      onClose: () => setIsModalOpen(false),
+      onSubmit: createFolder,
+      title: 'Create New Folder'
+    },
+      React.createElement('input', {
+        type: 'text',
+        value: newFolderName,
+        onChange: (e) => setNewFolderName(e.target.value),
+        placeholder: 'Folder Name',
+        className: 'w-full p-2 mb-4 border rounded'
+      }),
+      React.createElement('textarea', {
+        value: newFolderDescription,
+        onChange: (e) => setNewFolderDescription(e.target.value),
+        placeholder: 'Folder Description (optional)',
+        className: 'w-full p-2 mb-4 border rounded'
+      })
+    )
+  );
+};
+
+ReactDOM.render(React.createElement(MainPage), document.getElementById('root'));
+
+---
+
+File: server\templates\admin.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Intelligent Favorites Extension</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="/static/js/AdminPage.js"></script>
+</body>
+</html>
+
+---
+
+File: server\templates\index.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Favorites Extension</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="/static/js/MainPage.js"></script>
+</body>
+</html>
+
+---
+
+File: extension\manifest.json
+
+{
+  "manifest_version": 2,
+  "name": "Intelligent Favorites",
+  "version": "1.0",
+  "description": "Add favorites to your Intelligent Favorites system",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "http://localhost:8000/",
+    "theme"
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "24": "icons8-favorite-dark-24.png",
+      "48": "icons8-favorite-dark-48.png",
+      "96": "icons8-favorite-dark-96.png"
+    }
+  },
+  "icons": {
+    "24": "icons8-favorite-dark-24.png",
+    "48": "icons8-favorite-dark-48.png",
+    "96": "icons8-favorite-dark-96.png"
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  }
+}
+
+---
+
+File: extension\popup.html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Favorites</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 300px;
+            padding: 16px;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #106ebe;
+        }
+        #message {
+            margin-top: 12px;
+            font-weight: bold;
+        }
+        .link {
+            display: block;
+            margin-top: 12px;
+            color: #0078d4;
+            text-decoration: none;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Add Favorite</h1>
+    <input type="text" id="titleInput" placeholder="Title">
+    <button id="addButton">Add Favorite</button>
+    <button id="adminButton">Open Admin Page</button>
+    <a href="#" id="mainPageLink" class="link">Open Main Page</a>
+    <div id="message"></div>
+    <script src="popup.js"></script>
+</body>
+</html>
+
+---
+
+File: extension\popup.js
+
+document.addEventListener('DOMContentLoaded', function() {
+  const titleInput = document.getElementById('titleInput');
+  const addButton = document.getElementById('addButton');
+  const adminButton = document.getElementById('adminButton');
+  const mainPageLink = document.getElementById('mainPageLink');
+  const messageDiv = document.getElementById('message');
+
+  // Get the current tab's title and URL
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    const currentTab = tabs[0];
+    titleInput.value = currentTab.title;
+  });
+
+  addButton.addEventListener('click', function() {
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      const currentTab = tabs[0];
+      const favoriteData = {
+        url: currentTab.url,
+        title: titleInput.value
+      };
+
+      fetch('http://localhost:8000/api/favorites/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(favoriteData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        messageDiv.textContent = 'Favorite added successfully!';
+        messageDiv.style.color = 'green';
+      })
+      .catch(error => {
+        messageDiv.textContent = 'Error adding favorite.';
+        messageDiv.style.color = 'red';
+        console.error('Error:', error);
+      });
+    });
+  });
+
+  adminButton.addEventListener('click', function() {
+    chrome.tabs.create({url: 'http://localhost:8000/admin'});
+  });
+
+  mainPageLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    chrome.tabs.create({url: 'http://localhost:8000/'});
+  });
+});
+
+---
+
+File: server\web_router.py
+
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+@router.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@router.get("/admin", response_class=HTMLResponse)
+async def read_admin(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+---
+
+File: server\api_test.py
+
+import pytest
+import logging
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
+
+from main import app
+from database import Base
+from services import favorite_service, folder_service, tag_service
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Use an in-memory SQLite database for testing
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create a new database session for each test
+@pytest.fixture(scope="function")
+def db():
+    logger.info("Setting up test database")
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+        logger.info("Tearing down test database")
+
+# Create a test client
+@pytest.fixture(scope="module")
+def client():
+    logger.info("Creating test client")
+    with TestClient(app) as c:
+        yield c
+
+# Test favorite endpoints
+def test_create_favorite(client, db):
+    logger.info("Testing create favorite endpoint")
+    response = client.post(
+        "/api/favorites/",
+        json={"url": "https://example.com", "title": "Example", "summary": "An example website"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["url"] == "https://example.com/"  # Note the trailing slash
+    assert data["title"] == "Example"
+    assert "id" in data
+    logger.info(f"Created favorite with id: {data['id']}")
+
+def test_read_favorite(client, db):
+    logger.info("Testing read favorite endpoint")
+    # First, create a favorite
+    create_response = client.post(
+        "/api/favorites/",
+        json={"url": "https://example.com", "title": "Example", "summary": "An example website"}
+    )
+    favorite_id = create_response.json()["id"]
+    logger.info(f"Created favorite with id: {favorite_id}")
+
+    # Then, read the favorite
+    response = client.get(f"/api/favorites/{favorite_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["url"] == "https://example.com/"  # Note the trailing slash
+    assert data["title"] == "Example"
+    logger.info("Read favorite test passed")
+
+def test_update_favorite(client, db):
+    logger.info("Testing update favorite endpoint")
+    # First, create a favorite
+    create_response = client.post(
+        "/api/favorites/",
+        json={"url": "https://example.com", "title": "Example", "summary": "An example website"}
+    )
+    favorite_id = create_response.json()["id"]
+    logger.info(f"Created favorite with id: {favorite_id}")
+
+    # Then, update the favorite
+    response = client.put(
+        f"/api/favorites/{favorite_id}",
+        json={"title": "Updated Example", "summary": "An updated example website"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Updated Example"
+    assert data["summary"] == "An updated example website"
+    logger.info("Update favorite test passed")
+
+def test_delete_favorite(client, db):
+    logger.info("Testing delete favorite endpoint")
+    # First, create a favorite
+    create_response = client.post(
+        "/api/favorites/",
+        json={"url": "https://example.com", "title": "Example", "summary": "An example website"}
+    )
+    favorite_id = create_response.json()["id"]
+    logger.info(f"Created favorite with id: {favorite_id}")
+
+    # Then, delete the favorite
+    response = client.delete(f"/api/favorites/{favorite_id}")
+    assert response.status_code == 200
+    logger.info(f"Deleted favorite with id: {favorite_id}")
+
+    # Verify that the favorite has been deleted
+    get_response = client.get(f"/api/favorites/{favorite_id}")
+    assert get_response.status_code == 404
+    logger.info("Delete favorite test passed")
+
+# Test folder endpoints
+def test_create_folder(client, db):
+    logger.info("Testing create folder endpoint")
+    response = client.post(
+        "/api/folders/",
+        json={"name": "Test Folder", "description": "A test folder"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Test Folder"
+    assert "id" in data
+    logger.info(f"Created folder with id: {data['id']}")
+
+def test_read_folder(client, db):
+    logger.info("Testing read folder endpoint")
+    # First, create a folder
+    create_response = client.post(
+        "/api/folders/",
+        json={"name": "Test Folder", "description": "A test folder"}
+    )
+    folder_id = create_response.json()["id"]
+    logger.info(f"Created folder with id: {folder_id}")
+
+    # Then, read the folder
+    response = client.get(f"/api/folders/{folder_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Test Folder"
+    assert data["description"] == "A test folder"
+    logger.info("Read folder test passed")
+
+# Test tag endpoints
+def test_create_tag(client, db):
+    logger.info("Testing create tag endpoint")
+    response = client.post(
+        "/api/tags/",
+        json={"name": "TestTag"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "TestTag"
+    assert "id" in data
+    logger.info(f"Created tag with id: {data['id']}")
+
+def test_read_tag(client, db):
+    logger.info("Testing read tag endpoint")
+    # First, create a tag
+    create_response = client.post(
+        "/api/tags/",
+        json={"name": "UniqueTestTag"}  # Use a unique name
+    )
+    tag_id = create_response.json()["id"]
+    logger.info(f"Created tag with id: {tag_id}")
+
+    # Then, read the tag
+    response = client.get(f"/api/tags/{tag_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "UniqueTestTag"
+    logger.info("Read tag test passed")
+
+# Test search functionality
+def test_search_favorites(client, db):
+    logger.info("Testing search favorites endpoint")
+    # Create some favorites
+    client.post("/api/favorites/", json={"url": "https://example1.com", "title": "Example 1", "summary": "First example"})
+    client.post("/api/favorites/", json={"url": "https://example2.com", "title": "Example 2", "summary": "Second example"})
+    logger.info("Created test favorites for search")
+
+    # Perform a search
+    response = client.post("/api/search", json={"query": "First example", "limit": 5})
+    assert response.status_code == 200, f"Unexpected status code: {response.status_code}. Response: {response.text}"
+    data = response.json()
+    assert len(data) > 0
+    assert data[0]["title"] == "Example 1"
+    logger.info("Search favorites test passed")
+
+# Add more tests as needed for other endpoints and edge cases
+
+if __name__ == "__main__":
+    logger.info("Running tests...")
+    pytest.main([__file__])
+    logger.info("All tests completed.")
+
+---
+
+File: server\clientTest.py
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+import requests
+import json
+import asyncio
+import threading
+
+class IntelligentFavoritesApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("Intelligent Favorites Extension")
+        self.geometry("900x600")
+        self.configure(bg="#f0f0f0")
+
+        self.api_base_url = "http://localhost:8000/api"
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Create a notebook (tabbed interface)
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("TNotebook", background="#f0f0f0")
+        style.configure("TNotebook.Tab", padding=[10, 5], font=('Helvetica', 10))
+        style.configure("TButton", padding=5, font=('Helvetica', 10))
+
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(expand=True, fill="both", padx=10, pady=10)
+
+        # Create tabs
+        self.favorites_tab = ttk.Frame(self.notebook)
+        self.folders_tab = ttk.Frame(self.notebook)
+        self.tags_tab = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.favorites_tab, text="Favorites")
+        self.notebook.add(self.folders_tab, text="Folders")
+        self.notebook.add(self.tags_tab, text="Tags")
+
+        # Favorites Tab
+        self.create_favorites_tab()
+
+        # Folders Tab
+        self.create_folders_tab()
+
+        # Tags Tab
+        self.create_tags_tab()
+
+    def create_favorites_tab(self):
+        # Favorites List
+        list_frame = ttk.Frame(self.favorites_tab)
+        list_frame.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+        self.favorites_list = tk.Listbox(list_frame, width=80, font=('Helvetica', 10))
+        self.favorites_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.favorites_list.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.favorites_list.configure(yscrollcommand=scrollbar.set)
+
+        # Refresh Button
+        refresh_button = ttk.Button(self.favorites_tab, text="Refresh Favorites", command=self.refresh_favorites)
+        refresh_button.pack(pady=5)
+
+        # Add Favorite Frame
+        add_frame = ttk.Frame(self.favorites_tab)
+        add_frame.pack(pady=10)
+
+        ttk.Label(add_frame, text="URL:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.url_entry = ttk.Entry(add_frame, width=50)
+        self.url_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(add_frame, text="Title:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.title_entry = ttk.Entry(add_frame, width=50)
+        self.title_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        add_button = ttk.Button(add_frame, text="Add Favorite", command=self.add_favorite)
+        add_button.grid(row=2, column=1, pady=10)
+
+        # Status Label
+        self.status_label = ttk.Label(self.favorites_tab, text="", font=('Helvetica', 10))
+        self.status_label.pack(pady=5)
+
+    def create_folders_tab(self):
+        # Folders List
+        list_frame = ttk.Frame(self.folders_tab)
+        list_frame.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+        self.folders_list = tk.Listbox(list_frame, width=80, font=('Helvetica', 10))
+        self.folders_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.folders_list.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.folders_list.configure(yscrollcommand=scrollbar.set)
+
+        # Refresh Button
+        refresh_button = ttk.Button(self.folders_tab, text="Refresh Folders", command=self.refresh_folders)
+        refresh_button.pack(pady=5)
+
+        # Add Folder Frame
+        add_frame = ttk.Frame(self.folders_tab)
+        add_frame.pack(pady=10)
+
+        ttk.Label(add_frame, text="Name:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.folder_name_entry = ttk.Entry(add_frame, width=50)
+        self.folder_name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        add_button = ttk.Button(add_frame, text="Add Folder", command=self.add_folder)
+        add_button.grid(row=1, column=1, pady=10)
+
+    def create_tags_tab(self):
+        # Tags List
+        list_frame = ttk.Frame(self.tags_tab)
+        list_frame.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+        self.tags_list = tk.Listbox(list_frame, width=80, font=('Helvetica', 10))
+        self.tags_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.tags_list.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.tags_list.configure(yscrollcommand=scrollbar.set)
+
+        # Refresh Button
+        refresh_button = ttk.Button(self.tags_tab, text="Refresh Tags", command=self.refresh_tags)
+        refresh_button.pack(pady=5)
+
+        # Add Tag Frame
+        add_frame = ttk.Frame(self.tags_tab)
+        add_frame.pack(pady=10)
+
+        ttk.Label(add_frame, text="Name:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.tag_name_entry = ttk.Entry(add_frame, width=50)
+        self.tag_name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        add_button = ttk.Button(add_frame, text="Add Tag", command=self.add_tag)
+        add_button.grid(row=1, column=1, pady=10)
+
+    def refresh_favorites(self):
+        response = requests.get(f"{self.api_base_url}/favorites/")
+        if response.status_code == 200:
+            favorites = response.json()
+            self.favorites_list.delete(0, tk.END)
+            for favorite in favorites:
+                self.favorites_list.insert(tk.END, f"{favorite['title']} - {favorite['url']}")
+        else:
+            messagebox.showerror("Error", "Failed to fetch favorites")
+
+    def add_favorite(self):
+        url = self.url_entry.get()
+        title = self.title_entry.get()
+        if url and title:
+            try:
+                response = requests.post(f"{self.api_base_url}/favorites/", json={"url": url, "title": title})
+                response.raise_for_status()
+                task_data = response.json()
+                self.status_label.config(text="Adding favorite... Please wait.")
+                threading.Thread(target=self.poll_task_status, args=(task_data['task_id'],)).start()
+            except requests.RequestException as e:
+                messagebox.showerror("Error", f"Failed to add favorite: {str(e)}")
+        else:
+            messagebox.showwarning("Warning", "Please enter both URL and title")
+
+    def poll_task_status(self, task_id):
+        max_attempts = 30  # Maximum number of attempts (30 seconds)
+        attempt = 0
+        while attempt < max_attempts:
+            try:
+                response = requests.get(f"{self.api_base_url}/favorites/task/{task_id}")
+                response.raise_for_status()
+                task_status = response.json()
+                if task_status['status'] == 'completed':
+                    self.status_label.config(text="Favorite added successfully!")
+                    self.refresh_favorites()
+                    self.url_entry.delete(0, tk.END)
+                    self.title_entry.delete(0, tk.END)
+                    break
+                elif task_status['status'] == 'failed':
+                    self.status_label.config(text=f"Failed to add favorite: {task_status.get('error', 'Unknown error')}")
+                    break
+                else:
+                    self.status_label.config(text="Adding favorite... Please wait.")
+            except requests.RequestException as e:
+                self.status_label.config(text=f"Failed to check task status: {str(e)}")
+                break
+            
+            self.update_idletasks()
+            self.after(1000)  # Poll every second
+            attempt += 1
+        
+        if attempt >= max_attempts:
+            self.status_label.config(text="Timed out while adding favorite. Please try again.")
+
+    def refresh_folders(self):
+        response = requests.get(f"{self.api_base_url}/folders/")
+        if response.status_code == 200:
+            folders = response.json()
+            self.folders_list.delete(0, tk.END)
+            for folder in folders:
+                self.folders_list.insert(tk.END, folder['name'])
+        else:
+            messagebox.showerror("Error", "Failed to fetch folders")
+
+    def add_folder(self):
+        name = self.folder_name_entry.get()
+        if name:
+            response = requests.post(f"{self.api_base_url}/folders/", json={"name": name})
+            if response.status_code == 200:
+                messagebox.showinfo("Success", "Folder added successfully")
+                self.refresh_folders()
+                self.folder_name_entry.delete(0, tk.END)
+            else:
+                messagebox.showerror("Error", "Failed to add folder")
+        else:
+            messagebox.showwarning("Warning", "Please enter a folder name")
+
+    def refresh_tags(self):
+        response = requests.get(f"{self.api_base_url}/tags/")
+        if response.status_code == 200:
+            tags = response.json()
+            self.tags_list.delete(0, tk.END)
+            for tag in tags:
+                self.tags_list.insert(tk.END, tag['name'])
+        else:
+            messagebox.showerror("Error", "Failed to fetch tags")
+
+    def add_tag(self):
+        name = self.tag_name_entry.get()
+        if name:
+            response = requests.post(f"{self.api_base_url}/tags/", json={"name": name})
+            if response.status_code == 200:
+                messagebox.showinfo("Success", "Tag added successfully")
+                self.refresh_tags()
+                self.tag_name_entry.delete(0, tk.END)
+            else:
+                messagebox.showerror("Error", "Failed to add tag")
+        else:
+            messagebox.showwarning("Warning", "Please enter a tag name")
+
+if __name__ == "__main__":
+    app = IntelligentFavoritesApp()
+    app.mainloop()
+
+---
+
+File: server\database.py
+
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+# SQLite database URL
+SQLALCHEMY_DATABASE_URL = "sqlite:///./favorites.db"
+
+# Create SQLAlchemy engine
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+
+# Create SessionLocal class
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create Base class
+Base = declarative_base()
+
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Function to initialize the database
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+---
+
+File: server\DESIGN.md
+
+# Microsoft Edge Intelligent Favorites Extension - Design Document
+
+## 1. Introduction
+
+This document outlines the design for an intelligent favorites management extension for Microsoft Edge. The extension will allow users to store, organize, summarize, and search their favorites using advanced natural language processing techniques.
+
+## 2. System Architecture
+
+The system consists of two main components:
+1. Backend API (Python-based)
+2. Frontend Extension (Microsoft Edge Extension)
+
+### 2.1 Backend API
+
+- Framework: FastAPI
+- Database: SQLite (for structured data) and Chroma.db (for vector embeddings)
+- NLP Models: 
+  - LLM: phi3.5 (via Ollama) for chat completion and summarization
+  - Embeddings: nomic-embed-text (via Ollama) for semantic search and clustering
+- Deployment: Windows Service
+
+### 2.2 Frontend Extension
+
+- Technologies: HTML, CSS, JavaScript
+- API Communication: Fetch API
+
+## 3. Data Model
+
+### 3.1 SQLite Schema
+
+```sql
+-- Folders table
+CREATE TABLE folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    parent_id INTEGER,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES folders(id)
+);
+
+-- Favorites table
+CREATE TABLE favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    url TEXT NOT NULL,
+    title TEXT,
+    summary TEXT,
+    folder_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (folder_id) REFERENCES folders(id)
+);
+
+-- Tags table
+CREATE TABLE tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+-- Favorites-Tags association table
+CREATE TABLE favorites_tags (
+    favorite_id INTEGER,
+    tag_id INTEGER,
+    PRIMARY KEY (favorite_id, tag_id),
+    FOREIGN KEY (favorite_id) REFERENCES favorites(id),
+    FOREIGN KEY (tag_id) REFERENCES tags(id)
+);
+```
+
+### 3.2 Chroma.db Schema
+
+Collection name: `favorites_embeddings`
+
+Schema:
+- id: favorite.id
+- embedding: nomic-embed-text generated embedding
+- metadata:
+  - url: favorite.url
+  - title: favorite.title
+  - summary: favorite.summary
+  - folder_id: favorite.folder_id
+  - tags: comma-separated list of tag names
+
+## 4. API Endpoints
+
+### 4.1 Favorites Management
+
+- POST /api/favorites
+  - Add a new favorite
+  - Parameters: url, content (optional), folder_id (optional)
+  - Returns: Favorite object with generated summary and suggested tags
+
+- GET /api/favorites/{id}
+  - Retrieve a specific favorite
+  - Returns: Favorite object with all associated data
+
+- PUT /api/favorites/{id}
+  - Update a favorite
+  - Parameters: title, summary, folder_id, tags
+
+- DELETE /api/favorites/{id}
+  - Remove a favorite
+
+- GET /api/favorites
+  - List favorites
+  - Parameters: folder_id (optional), tag (optional), search_query (optional)
+  - Returns: List of favorite objects
+
+### 4.2 Folder Management
+
+- POST /api/folders
+  - Create a new folder
+  - Parameters: name, parent_id (optional), description
+
+- GET /api/folders/{id}
+  - Retrieve folder details
+
+- PUT /api/folders/{id}
+  - Update folder information
+  - Parameters: name, parent_id, description
+
+- DELETE /api/folders/{id}
+  - Remove a folder
+  - Parameters: move_to_parent (boolean, optional)
+
+- GET /api/folders
+  - List folder structure
+  - Returns: Tree-like structure of folders
+
+### 4.3 Search and Suggestions
+
+- POST /api/search
+  - Perform semantic search on favorites
+  - Parameters: query, limit (optional)
+
+- GET /api/suggest-tags
+  - Get tag suggestions for given content
+  - Parameters: content or url
+
+- GET /api/suggest-folder
+  - Get folder placement suggestion for given content
+  - Parameters: content or url
+
+## 5. Key Features and Workflows
+
+### 5.1 Adding a New Favorite
+
+1. User clicks the extension button or uses a keyboard shortcut
+2. Extension frontend sends the current page URL to the backend
+3. Backend scrapes the content (if not provided) and processes it:
+   a. Generates a summary using phi3.5
+   b. Creates an embedding using nomic-embed-text
+   c. Suggests tags based on content clustering
+   d. Suggests a folder based on content analysis
+4. User reviews and optionally modifies the suggestions
+5. Favorite is saved to the database with all associated data
+
+### 5.2 Searching Favorites
+
+1. User enters a search query in the extension's search bar
+2. Query is sent to the backend
+3. Backend performs:
+   a. Semantic search using Chroma.db
+   b. Optional keyword-based search on titles and summaries
+4. Results are returned and displayed in the extension UI
+
+### 5.3 Organizing Favorites
+
+1. User navigates the folder structure in the extension UI
+2. When moving a favorite:
+   a. User selects the favorite and chooses "Move"
+   b. Backend suggests folders based on content similarity
+   c. User selects a destination folder
+   d. Backend updates the favorite's folder_id
+
+## 6. LLM Integration
+
+### 6.1 Content Summarization
+
+- Use phi3.5 to generate concise summaries (2-3 sentences) of favorited web pages
+- Prompt engineering will be crucial for consistent, high-quality summaries
+
+### 6.2 Folder Suggestions
+
+- Analyze the content and existing folder structure
+- Use phi3.5 to suggest the most appropriate existing folder or propose a new one
+- Generate folder descriptions for new folders
+
+### 6.3 Tag Generation
+
+- Use nomic-embed-text to create embeddings for favorites
+- Cluster similar favorites and use phi3.5 to generate descriptive tags for each cluster
+
+## 7. Extension UI Design
+
+### 7.1 Popup Interface
+
+- Quick add favorite button
+- Search bar
+- Recent favorites list
+- Quick access to main categories/folders
+
+### 7.2 Full Page Interface
+
+- Complete folder structure navigation
+- Advanced search options
+- Favorite management (edit, move, delete)
+- Tag management
+- Settings and customization options
+
+## 8. Security and Privacy
+
+- Implement user authentication for API access
+- Use HTTPS for all API communications
+- Store sensitive data (e.g., authentication tokens) securely
+- Provide options for users to control data storage and deletion
+
+## 9. Performance Optimization
+
+- Implement caching strategies for frequently accessed data
+- Use background scripts for time-consuming tasks (e.g., content scraping, summarization)
+- Optimize database queries and indexing
+
+## 10. Future Enhancements
+
+- Multi-device synchronization
+- Collaborative sharing of favorites and folders
+- Integration with other browsers or platforms
+- Advanced analytics on browsing habits and favorite usage
+
+## 11. Testing Strategy
+
+- Unit tests for backend API functions
+- Integration tests for database operations and LLM integrations
+- End-to-end tests for extension workflows
+- User acceptance testing for UI/UX
+
+## 12. Deployment and Maintenance
+
+### 12.1 Windows Service Setup
+
+- Implement the API server as a Windows service for automatic startup and background operation
+- Use a service management library like `win32serviceutil` or `pywin32` for service implementation
+- Create service installation and configuration scripts
+- Implement logging for service status and error reporting
+- Ensure proper error handling and automatic restart capabilities
+
+### 12.2 Service Configuration
+
+- Create a configuration file for service parameters (e.g., port, database location, log file location)
+- Implement a method to update service configuration without reinstallation
+
+### 12.3 Monitoring and Management
+
+- Develop a simple management UI or CLI tool for:
+  - Starting/stopping the service
+  - Viewing service status
+  - Accessing logs
+  - Updating configuration
+
+### 12.4 Continuous Integration and Deployment
+
+- Set up CI/CD pipeline for automated testing and deployment
+- Include service installation and update procedures in the deployment process
+- Implement version control for the service configuration
+
+### 12.5 Regular Maintenance
+
+- Monitor API performance and error rates
+- Regularly update dependencies and LLM models
+- Provide user support and feature request channels
+- Schedule regular database backups and maintenance tasks
+
+This design document provides a comprehensive overview of the Microsoft Edge Intelligent Favorites Extension project, including its implementation as a Windows service. It serves as a blueprint for development and can be updated as the project evolves.
+
+---
+
+File: server\favorites_router.py
+
+# favorites_router.py
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from typing import List, Dict
+from pydantic import ValidationError
+
+from database import get_db
+import schemas
+from services import favorite_service, folder_service, nlp_service
+from task_queue import task_queue
+
+router = APIRouter()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@router.post("/", response_model=Dict[str, str])
+async def create_favorite(favorite: schemas.FavoriteCreate):
+    try:
+        task_name = f"Create Favorite: {favorite.title}"
+        result = favorite_service.create_favorite(favorite, task_name)
+        return {"task_id": result["task_id"]}
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/task/{task_id}", response_model=schemas.TaskStatusDetail)
+async def get_task_status(task_id: str):
+    task_status = task_queue.get_task_status(task_id)
+    if task_status is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return schemas.TaskStatusDetail(**task_status)
+
+@router.get("/tasks", response_model=List[schemas.TaskStatus])
+async def get_tasks():
+    tasks = task_queue.get_all_tasks()
+    return [schemas.TaskStatus(**task) for task in tasks]
+
+@router.get("/{favorite_id}", response_model=schemas.Favorite)
+def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
+    db_favorite = favorite_service.get_favorite(db, favorite_id)
+    if db_favorite is None:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    return db_favorite
+
+@router.get("/", response_model=List[schemas.Favorite])
+def read_favorites(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return favorite_service.get_favorites(db, skip=skip, limit=limit)
+
+@router.put("/{favorite_id}", response_model=schemas.Favorite)
+def update_favorite(favorite_id: int, favorite: schemas.FavoriteUpdate, db: Session = Depends(get_db)):
+    updated_favorite = favorite_service.update_favorite(db, favorite_id, favorite)
+    if updated_favorite is None:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    return updated_favorite
+
+@router.delete("/{favorite_id}", response_model=schemas.Favorite)
+def delete_favorite(favorite_id: int, db: Session = Depends(get_db)):
+    deleted_favorite = favorite_service.delete_favorite(db, favorite_id)
+    if deleted_favorite is None:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    return deleted_favorite
+
+@router.post("/suggest-tags", response_model=List[str])
+async def suggest_tags(favorite: schemas.FavoriteCreate, db: Session = Depends(get_db)):
+    return await nlp_service.suggest_tags(str(favorite.url))
+
+@router.post("/suggest-folder", response_model=int)
+async def suggest_folder(favorite: schemas.FavoriteCreate, db: Session = Depends(get_db)):
+    return await nlp_service.suggest_folder(db, str(favorite.url))
+
+---
+
+File: server\folder_structure.json
+
+{
+    "name": "Root",
+    "description": "Root folder for all categories",
+    "children": [
+      {
+        "name": "Work",
+        "description": "Work-related favorites",
+        "children": [
+          {
+            "name": "Projects",
+            "description": "Work projects",
+            "children": []
+          },
+          {
+            "name": "Tools",
+            "description": "Work-related tools"
+          },
+          {
+            "name": "References",
+            "description": "Work-related references"
+          }
+        ]
+      },
+      {
+        "name": "Development",
+        "description": "Development-related favorites",
+        "children": [
+          {
+            "name": "Languages",
+            "description": "Programming languages",
+            "children": [
+              {
+                "name": "HTML & CSS",
+                "description": "HTML and CSS resources"
+              },
+              {
+                "name": "JavaScript",
+                "description": "JavaScript resources"
+              },
+              {
+                "name": "Python",
+                "description": "Python resources"
+              },
+              {
+                "name": "PHP",
+                "description": "PHP resources"
+              }
+            ]
+          },
+          {
+            "name": "Frameworks",
+            "description": "Web frameworks",
+            "children": [
+              {
+                "name": "React",
+                "description": "React resources"
+              },
+              {
+                "name": "Angular",
+                "description": "Angular resources"
+              },
+              {
+                "name": "Vue.js",
+                "description": "Vue.js resources"
+              }
+            ]
+          },
+          {
+            "name": "Libraries",
+            "description": "Programming libraries",
+            "children": [
+              {
+                "name": "jQuery",
+                "description": "jQuery resources"
+              },
+              {
+                "name": "Bootstrap",
+                "description": "Bootstrap resources"
+              }
+            ]
+          },
+          {
+            "name": "Tools",
+            "description": "Development tools",
+            "children": [
+              {
+                "name": "IDEs",
+                "description": "Integrated Development Environments"
+              },
+              {
+                "name": "Version Control",
+                "description": "Version control systems"
+              }
+            ]
+          },
+          {
+            "name": "References",
+            "description": "Development references"
+          }
+        ]
+      },
+      {
+        "name": "Design",
+        "description": "Design-related favorites",
+        "children": [
+          {
+            "name": "Inspiration",
+            "description": "Design inspiration"
+          },
+          {
+            "name": "Tools",
+            "description": "Design tools",
+            "children": [
+              {
+                "name": "Mockups",
+                "description": "Mockup tools"
+              },
+              {
+                "name": "Wireframes",
+                "description": "Wireframe tools"
+              }
+            ]
+          },
+          {
+            "name": "References",
+            "description": "Design references"
+          }
+        ]
+      },
+      {
+        "name": "Productivity",
+        "description": "Productivity-related favorites",
+        "children": [
+          {
+            "name": "To Read",
+            "description": "Articles and resources to read"
+          },
+          {
+            "name": "To Watch",
+            "description": "Videos and presentations to watch"
+          },
+          {
+            "name": "To Try",
+            "description": "Tools and techniques to try"
+          }
+        ]
+      },
+      {
+        "name": "Personal",
+        "description": "Personal favorites",
+        "children": [
+          {
+            "name": "Hobbies",
+            "description": "Personal hobbies"
+          },
+          {
+            "name": "Travel",
+            "description": "Travel-related favorites"
+          },
+          {
+            "name": "Finance",
+            "description": "Personal finance resources"
+          }
+        ]
+      },
+      {
+        "name": "Uncategorized",
+        "description": "Uncategorized favorites"
+      }
+    ]
+  }
+
+---
+
+File: server\folders_router.py
+
+# folders_router.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+
+from database import get_db
+import schemas
+from services import folder_service
+
+router = APIRouter()
+
+@router.post("/", response_model=schemas.Folder)
+def create_folder(folder: schemas.FolderCreate, db: Session = Depends(get_db)):
+    return folder_service.create_folder(db, folder)
+
+@router.get("/{folder_id}/favorites", response_model=List[schemas.Favorite])
+def get_folder_favorites(folder_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    favorites = folder_service.get_folder_favorites(db, folder_id, skip, limit)
+    if favorites is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return favorites
+
+@router.get("/", response_model=List[dict])
+def read_folders(db: Session = Depends(get_db)):
+    return folder_service.get_folder_structure(db)
+
+@router.put("/{folder_id}", response_model=schemas.Folder)
+def update_folder(folder_id: int, folder: schemas.FolderCreate, db: Session = Depends(get_db)):
+    updated_folder = folder_service.update_folder(db, folder_id, folder)
+    if updated_folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return updated_folder
+
+@router.delete("/{folder_id}", response_model=schemas.Folder)
+def delete_folder(folder_id: int, move_to_parent: bool = False, db: Session = Depends(get_db)):
+    deleted_folder = folder_service.delete_folder(db, folder_id, move_to_parent)
+    if deleted_folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return deleted_folder
+
+@router.get("/structure", response_model=schemas.FolderWithChildren)
+def get_folder_structure(db: Session = Depends(get_db)):
+    return folder_service.get_folder_structure(db)
+
+@router.post("/{folder_id}/move", response_model=schemas.Folder)
+def move_folder(folder_id: int, new_parent_id: int, db: Session = Depends(get_db)):
+    moved_folder = folder_service.move_folder(db, folder_id, new_parent_id)
+    if moved_folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return moved_folder
+
+@router.get("/{folder_id}/favorites", response_model=List[schemas.Favorite])
+def get_folder_favorites(folder_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    favorites = folder_service.get_folder_favorites(db, folder_id, skip, limit)
+    if favorites is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return favorites
+
+---
+
+File: server\initDB.py
+
+import json
+import chromadb
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, sessionmaker
+from datetime import datetime
+
+# Initialize ChromaDB
+chroma_client = chromadb.Client()
+collection = chroma_client.create_collection(name="favorites_embeddings")
+
+# Initialize SQLAlchemy
+engine = create_engine('sqlite:///favorites.db', echo=True)
+Base = declarative_base()
+
+# Define SQLAlchemy models
+class Folder(Base):
+    __tablename__ = 'folders'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey('folders.id'))
+    description = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent = relationship('Folder', remote_side=[id], back_populates='children')
+    children = relationship('Folder', back_populates='parent')
+
+class Favorite(Base):
+    __tablename__ = 'favorites'
+    id = Column(Integer, primary_key=True)
+    url = Column(String, nullable=False)
+    title = Column(String)
+    summary = Column(String)
+    folder_id = Column(Integer, ForeignKey('folders.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    folder = relationship('Folder')
+    tags = relationship('Tag', secondary='favorite_tags')
+
+class Tag(Base):
+    __tablename__ = 'tags'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+
+favorite_tags = Table('favorite_tags', Base.metadata,
+    Column('favorite_id', Integer, ForeignKey('favorites.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+)
+
+# Define Task model
+class Task(Base):
+    __tablename__ = 'tasks'
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    progress = Column(String, nullable=False)
+    result = Column(Text)
+
+# Create tables
+Base.metadata.drop_all(engine)  # Drop existing tables
+Base.metadata.create_all(engine)
+
+print("Database tables initialized successfully.")
+
+# Create initial folders
+Session = sessionmaker(bind=engine)
+session = Session()
+
+def create_folder(name, parent=None, description=None):
+    folder = Folder(name=name, description=description)
+    if parent:
+        folder.parent = parent
+    session.add(folder)
+    session.flush()  # This will assign an ID to the folder
+    return folder
+
+def create_folder_structure(structure, parent=None):
+    folder = create_folder(structure['name'], parent, structure.get('description'))
+    for child in structure.get('children', []):
+        create_folder_structure(child, folder)
+
+# Load folder structure from JSON file
+with open('folder_structure.json', 'r') as f:
+    folder_structure = json.load(f)
+
+# Create folder structure
+create_folder_structure(folder_structure)
+
+session.commit()
+
+print("Initial folders created successfully.")
+
+# Verify folder structure
+def print_folder_structure(folder, level=0):
+    print("  " * level + f"- {folder.name}")
+    for child in folder.children:
+        print_folder_structure(child, level + 1)
+
+root = session.query(Folder).filter(Folder.name == "Root").first()
+print("\nFolder structure:")
+print_folder_structure(root)
+
+# Clear task table
+session.query(Task).delete()
+session.commit()
+print("\nTask table cleared successfully.")
+
+session.close()
+
+print("\nDatabase setup complete.")
+
+---
+
+File: server\llm.py
+
+from abc import ABC, abstractmethod
+import ollama
+from openai import OpenAI
+import os
+from typing import Optional, Generator, Any
+from anthropic import Anthropic, AsyncAnthropic
+
+class LLMProvider(ABC):
+    @abstractmethod
+    def generate(self, prompt: str) -> str:
+        pass
+
+    @abstractmethod
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        pass
+
+class OllamaProvider(LLMProvider):
+    def __init__(self, model: str = 'phi3.5'):
+        self.model = model
+
+    def generate(self, prompt: str) -> str:
+        try:
+            response = ollama.generate(model=self.model, prompt=prompt)
+            return response['response']
+        except Exception as e:
+            raise RuntimeError(f"Error generating response with Ollama: {str(e)}")
+
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        try:
+            stream = ollama.generate(model=self.model, prompt=prompt, stream=True)
+            for chunk in stream:
+                yield chunk['response']
+        except Exception as e:
+            raise RuntimeError(f"Error generating streaming response with Ollama: {str(e)}")
+
+class OpenAIProvider(LLMProvider):
+    def __init__(self, model: str = "gpt-3.5-turbo"):
+        self.model = model
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+        self.client = OpenAI()
+
+    def generate(self, prompt: str) -> str:
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return completion.choices[0].message.content
+        except Exception as e:
+            raise RuntimeError(f"Error generating response with OpenAI: {str(e)}")
+
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            raise RuntimeError(f"Error generating streaming response with OpenAI: {str(e)}")
+
+    def generate_with_metadata(self, prompt: str) -> tuple[str, Any]:
+        try:
+            response = self.client.chat.completions.with_raw_response.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            completion = response.parse()
+            return completion.choices[0].message.content, response.request_id
+        except Exception as e:
+            raise RuntimeError(f"Error generating response with metadata from OpenAI: {str(e)}")
+
+class AnthropicProvider(LLMProvider):
+    def __init__(self, model: str = "claude-3-haiku-20240307"):
+        self.model = model
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("Anthropic API key not found. Please set the ANTHROPIC_API_KEY environment variable.")
+        self.client = Anthropic()
+
+    def generate(self, prompt: str) -> str:
+        try:
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+            )
+            return message.content[0].text
+        except Exception as e:
+            raise RuntimeError(f"Error generating response with Anthropic: {str(e)}")
+
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        try:
+            stream = self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                stream=True,
+            )
+            for event in stream:
+                if event.type == "content_block_delta":
+                    yield event.delta.text
+        except Exception as e:
+            raise RuntimeError(f"Error generating streaming response with Anthropic: {str(e)}")
+
+class LLMService:
+    def __init__(self, provider: Optional[LLMProvider] = None):
+        if provider is None:
+            # Default to Ollama if no provider is specified
+            provider = OllamaProvider()
+        self.provider = provider
+
+    def generate(self, prompt: str) -> str:
+        return self.provider.generate(prompt)
+
+    def generate_stream(self, prompt: str) -> Generator[str, None, None]:
+        return self.provider.generate_stream(prompt)
+
+    def generate_with_metadata(self, prompt: str) -> tuple[str, Any]:
+        if isinstance(self.provider, OpenAIProvider):
+            return self.provider.generate_with_metadata(prompt)
+        else:
+            return self.generate(prompt), None
+
+# Initialize with default provider (Ollama)
+# llm_service = LLMService()
+
+# To use OpenAI provider, uncomment the following line and ensure OPENAI_API_KEY is set
+# llm_service = LLMService(OpenAIProvider())
+
+# To use Anthropic provider, uncomment the following line and ensure ANTHROPIC_API_KEY is set
+llm_service = LLMService(AnthropicProvider())
+
+---
+
+File: server\models.py
+
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+from database import Base
+
+# Association table for many-to-many relationship between Favorite and Tag
+favorite_tags = Table('favorite_tags', Base.metadata,
+    Column('favorite_id', Integer, ForeignKey('favorites.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+)
+
+class Folder(Base):
+    __tablename__ = 'folders'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey('folders.id'))
+    description = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent = relationship('Folder', remote_side=[id], back_populates='children')
+    children = relationship('Folder', back_populates='parent')
+    favorites = relationship('Favorite', back_populates='folder')
+
+class Favorite(Base):
+    __tablename__ = 'favorites'
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False)
+    title = Column(String)
+    summary = Column(String)
+    folder_id = Column(Integer, ForeignKey('folders.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    folder = relationship('Folder', back_populates='favorites')
+    tags = relationship('Tag', secondary=favorite_tags, back_populates='favorites')
+
+class Tag(Base):
+    __tablename__ = 'tags'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+
+    favorites = relationship('Favorite', secondary=favorite_tags, back_populates='tags')
+
+---
+
+File: server\schemas.py
+
+from pydantic import BaseModel, HttpUrl
+from typing import List, Optional
+from datetime import datetime
+
+# Schemas for Tag
+class TagBase(BaseModel):
+    name: str
+
+class TagCreate(TagBase):
+    pass
+
+class Tag(TagBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+# Schemas for Folder
+class FolderBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class FolderCreate(FolderBase):
+    parent_id: Optional[int] = None
+
+class Folder(FolderBase):
+    id: int
+    parent_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# Schemas for Favorite
+class FavoriteBase(BaseModel):
+    url: HttpUrl
+    title: Optional[str] = None
+    summary: Optional[str] = None
+
+class FavoriteCreate(FavoriteBase):
+    folder_id: Optional[int] = None
+    tags: Optional[List[str]] = None
+
+class FavoriteUpdate(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    folder_id: Optional[int] = None
+    tags: Optional[List[str]] = None
+
+class Favorite(FavoriteBase):
+    id: int
+    folder_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+    tags: List[Tag] = []
+
+    class Config:
+        from_attributes = True  # Changed from orm_mode = True
+
+class FavoriteCreate(BaseModel):
+    url: HttpUrl
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    folder_id: Optional[int] = None
+    tags: Optional[List[str]] = None
+
+# Schemas for nested relationships
+class FolderWithChildren(Folder):
+    children: List['FolderWithChildren'] = []
+    favorites: List[Favorite] = []
+
+    class Config:
+        from_attributes = True
+
+class TaskStatus(BaseModel):
+    id: str
+    name: str
+    status: str
+    progress: str
+
+class TaskStatusDetail(TaskStatus):
+    result: Optional[str] = None
+
+class TaskCreate(BaseModel):
+    name: str
+
+FolderWithChildren.update_forward_refs()
+
+---
+
+File: server\services.py
+
+# services.py
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
+import models, schemas
+from typing import List, Optional
+import requests
+from bs4 import BeautifulSoup
+import logging
+import re
+from typing import Union
+from task_queue import task_queue
+from database import SessionLocal, engine
+import asyncio
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry  # Updated import statement
+import random
+from urllib.parse import urlparse
+from llm import llm_service
+from rich import print as rprint
+import builtins
+
+builtins.print = rprint
+
+logger = logging.getLogger(__name__)
+
+class FavoriteService:
+    async def create_favorite_task(self, task_id: str, favorite_data: dict):
+        db = SessionLocal()
+        try:
+            favorite = schemas.FavoriteCreate(**favorite_data)
+            
+            task_queue._update_task(task_id, "processing", 10, None)
+            # Generate summary if not provided
+            if not favorite.summary:
+                favorite.summary = await nlp_service.summarize_content(str(favorite.url))
+            
+            task_queue._update_task(task_id, "processing", 40, None)
+            # Suggest tags if not provided
+            if not favorite.tags:
+                favorite.tags = await nlp_service.suggest_tags(favorite.summary)
+            
+            task_queue._update_task(task_id, "processing", 70, None)
+            # Suggest folder if not provided
+            if not favorite.folder_id:
+                favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary)
+            
+            db_favorite = models.Favorite(
+                url=str(favorite.url),
+                title=favorite.title,
+                summary=favorite.summary,
+                folder_id=favorite.folder_id
+            )
+            db.add(db_favorite)
+            db.flush()
+
+            for tag_name in favorite.tags:
+                tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                if not tag:
+                    tag = models.Tag(name=tag_name)
+                    db.add(tag)
+                    db.flush()
+                db_favorite.tags.append(tag)
+
+            db.commit()
+            return db_favorite.id
+        except Exception as e:
+            logger.error(f"Error creating favorite: {str(e)}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
+        task_id = task_queue.add_task(
+            self.create_favorite_task,
+            task_name,
+            favorite.dict()
+        )
+        return {"task_id": task_id}
+
+    def get_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
+        return db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+
+    def get_favorites(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Favorite]:
+        return db.query(models.Favorite).offset(skip).limit(limit).all()
+
+    def update_favorite(self, db: Session, favorite_id: int, favorite: schemas.FavoriteUpdate) -> Optional[models.Favorite]:
+        db_favorite = db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        if db_favorite:
+            update_data = favorite.dict(exclude_unset=True)
+            for key, value in update_data.items():
+                setattr(db_favorite, key, value)
+            db.commit()
+            db.refresh(db_favorite)
+        return db_favorite
+
+    def delete_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
+        db_favorite = db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        if db_favorite:
+            db.delete(db_favorite)
+            db.commit()
+        return db_favorite
+
+# Folder Service
+class FolderService:
+    def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
+        db_folder = models.Folder(**folder.dict())
+        db.add(db_folder)
+        db.commit()
+        db.refresh(db_folder)
+        return db_folder
+
+    def get_folder(self, db: Session, folder_id: int) -> Optional[models.Folder]:
+        return db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+
+    def get_folders(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Folder]:
+        return db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).offset(skip).limit(limit).all()
+
+    def update_folder(self, db: Session, folder_id: int, folder: schemas.FolderCreate) -> Optional[models.Folder]:
+        db_folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        if db_folder:
+            for key, value in folder.dict().items():
+                setattr(db_folder, key, value)
+            db.commit()
+            db.refresh(db_folder)
+        return db_folder
+
+    def delete_folder(self, db: Session, folder_id: int, move_to_parent: bool = False) -> Optional[models.Folder]:
+        db_folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        if db_folder:
+            if move_to_parent and db_folder.parent_id:
+                for child_folder in db_folder.children:
+                    child_folder.parent_id = db_folder.parent_id
+                for favorite in db_folder.favorites:
+                    favorite.folder_id = db_folder.parent_id
+            else:
+                for child_folder in db_folder.children:
+                    child_folder.parent_id = None
+                for favorite in db_folder.favorites:
+                    favorite.folder_id = None
+            db.delete(db_folder)
+            db.commit()
+        return db_folder
+
+    def get_folder_structure(self, db: Session):
+        def build_structure(folder):
+            return {
+                "id": folder.id,
+                "name": folder.name,
+                "parent_id": folder.parent_id,
+                "description": folder.description, 
+                "children": [build_structure(child) for child in folder.children if isinstance(child, models.Folder)]
+            }
+
+        root_folders = db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).all()
+        return [build_structure(folder) for folder in root_folders]
+
+    
+    def get_folder_favorites(self, db: Session, folder_id: int, skip: int = 0, limit: int = 100):
+        folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        if folder:
+            return db.query(models.Favorite).filter(models.Favorite.folder_id == folder_id).offset(skip).limit(limit).all()
+        return None
+
+# Tag Service
+class TagService:
+    def create_tag(self, db: Session, tag: schemas.TagCreate) -> models.Tag:
+        db_tag = models.Tag(**tag.dict())
+        db.add(db_tag)
+        db.commit()
+        db.refresh(db_tag)
+        return db_tag
+
+    def get_tag(self, db: Session, tag_id: int) -> Optional[models.Tag]:
+        return db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+
+    def get_tags(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Tag]:
+        return db.query(models.Tag).offset(skip).limit(limit).all()
+
+    def update_tag(self, db: Session, tag_id: int, tag: schemas.TagCreate) -> Optional[models.Tag]:
+        db_tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+        if db_tag:
+            for key, value in tag.dict().items():
+                setattr(db_tag, key, value)
+            db.commit()
+            db.refresh(db_tag)
+        return db_tag
+
+    def delete_tag(self, db: Session, tag_id: int) -> Optional[models.Tag]:
+        db_tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+        if db_tag:
+            db.delete(db_tag)
+            db.commit()
+        return db_tag
+
+    def search_tags(self, db: Session, query: str) -> List[models.Tag]:
+        return db.query(models.Tag).filter(models.Tag.name.ilike(f"%{query}%")).all()
+
+    def get_tag_favorites(self, db: Session, tag_id: int, skip: int = 0, limit: int = 100) -> Optional[List[models.Favorite]]:
+        tag = self.get_tag(db, tag_id)
+        if tag:
+            return tag.favorites[skip:skip+limit]
+        return None
+
+    async def suggest_tags(self, content: str) -> List[str]:
+        return await self.nlp_service.suggest_tags(content)
+
+    def get_popular_tags(self, db: Session, limit: int = 10) -> List[models.Tag]:
+        return db.query(models.Tag).join(models.favorite_tags).group_by(models.Tag.id).order_by(func.count(models.favorite_tags.c.favorite_id).desc()).limit(limit).all()
+
+# NLP Service
+class NLPService:
+    def __init__(self):
+        self.session = requests.Session()
+        retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+        self.session.mount('http://', HTTPAdapter(max_retries=retries))
+        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    def get_random_user_agent(self):
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59'
+        ]
+        return random.choice(user_agents)
+
+    async def fetch_with_retries(self, url, max_retries=3):
+        for attempt in range(max_retries):
+            headers = {
+                'User-Agent': self.get_random_user_agent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.google.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+
+            try:
+                await asyncio.sleep(random.uniform(1, 3))  # Random delay
+                response = await asyncio.to_thread(
+                    self.session.get, url, headers=headers, timeout=15
+                )
+                response.raise_for_status()
+                return response
+            except requests.HTTPError as e:
+                if e.response.status_code == 403:
+                    logger.warning(f"403 Forbidden encountered on attempt {attempt + 1}. Retrying...")
+                    if attempt == max_retries - 1:
+                        logger.error(f"Max retries reached for URL {url}. Unable to fetch content.")
+                        raise
+                else:
+                    raise
+            except requests.RequestException as e:
+                logger.error(f"Error fetching URL {url} on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    raise
+
+    def generate_fallback_description(self, url: str) -> str:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        path = parsed_url.path
+
+        prompt = f"""Generate a brief, general description for a webpage based only on its URL. The URL is:
+
+{url}
+
+Your description should:
+1. Mention that this is a speculative description based solely on the URL.
+2. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
+3. Suggest possible content or purpose of the specific page based on the URL path.
+4. Use neutral language and avoid making definitive claims about the content.
+
+Limit your response to 2-3 sentences."""
+
+        return llm_service.generate(prompt)
+
+    async def summarize_content(self, url: str) -> str:
+        try:
+            response = await self.fetch_with_retries(url)
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Extract meta information
+            meta_info = {}
+            meta_tags = soup.find_all('meta')
+            for tag in meta_tags:
+                if 'name' in tag.attrs and tag.attrs['name'].lower() in ['description', 'keywords']:
+                    meta_info[tag.attrs['name'].lower()] = tag.attrs.get('content', '')
+                elif 'property' in tag.attrs and tag.attrs['property'].lower() in ['og:title', 'og:description']:
+                    meta_info[tag.attrs['property'].lower()] = tag.attrs.get('content', '')
+
+            # Combine meta information
+            meta_text = "\n".join([f"{key.capitalize()}: {value}" for key, value in meta_info.items() if value])
+
+            # If meta information is insufficient, scrape content
+            if len(meta_text.strip()) < 100:
+                # Extract text from specific tags
+                content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                content = ' '.join([tag.get_text(strip=True) for tag in content_tags])
+                content = ' '.join(content.split())  # Remove extra whitespace
+                content = content[:3000]  # Limit content to first 3000 characters
+            else:
+                content = ""
+
+            prompt = f"""You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
+
+<webpage_info>
+{meta_text}
+{content}
+</webpage_info>
+
+Please create a summary of 2-3 sentences that describes the webpage and its main topic or purpose. Your summary should:
+
+1. Identify the type of webpage (e.g., article, product page, blog post, etc.)
+2. Explain the main subject or theme of the content
+3. Highlight any key features or important information presented on the page
+4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
+
+Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
+
+            return llm_service.generate(prompt)
+
+        except requests.RequestException as e:
+            logger.error(f"Error fetching URL {url}: {str(e)}")
+            return self.generate_fallback_description(url)
+
+    
+    async def suggest_tags(self, summary: str) -> List[str]:
+        prompt = f"""You are tasked with suggesting 3-5 relevant tags for the following summary:
+
+<summary>
+{summary}
+</summary>
+
+Your goal is to generate tags that accurately represent the main topics, themes, or key elements discussed in the summary. Follow these guidelines when selecting tags:
+
+1. Choose tags that are concise, typically consisting of one or two words.
+2. Focus on the most prominent and important concepts in the summary.
+3. Avoid overly generic tags that could apply to almost any text.
+4. Ensure the tags are diverse and cover different aspects of the summary.
+5. If applicable, include tags related to the subject matter, industry, or field of study.
+
+Provide your answer as a comma-separated list of tags, without any additional text or explanation. The list should contain a minimum of 3 tags and a maximum of 5 tags.
+
+Example output format:
+tag1, tag2, tag3, tag4, tag5
+
+Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
+IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!"""
+
+        response = llm_service.generate(prompt)
+        # Clean up the response: remove everything after the first newline and split by comma
+        cleaned_response = response.split('\n')[0]
+        tags = cleaned_response.split(',')
+        
+        # Strip whitespace and filter out any empty tags
+        return [tag.strip() for tag in tags if tag.strip()]
+
+    def get_folder_structure(self, db: Session):
+        def build_structure(folder, level=0):
+            return {
+                "name": folder.name,
+                "id": folder.id,
+                "level": level,
+                "children": [build_structure(child, level + 1) for child in folder.children]
+            }
+
+        root = db.query(models.Folder).filter(models.Folder.parent_id == None).first()
+        return build_structure(root)
+
+    def format_folder_structure(self, structure, level=0):
+        result = "  " * level + f"- {structure['name']} (ID: {structure['id']})\n"
+        for child in structure['children']:
+            result += self.format_folder_structure(child, level + 1)
+        return result
+
+    async def suggest_folder(self, db: Session, summary: str) -> int:
+        folder_structure = self.get_folder_structure(db)
+        formatted_structure = self.format_folder_structure(folder_structure)
+
+        prompt = f"""You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
+
+1. First, you will be presented with a summary of a webpage:
+
+<summary>
+{summary}
+</summary>
+
+2. Next, you will be given the existing folder structure:
+
+<folder_structure>
+{formatted_structure}
+</folder_structure>
+
+3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
+   - Does the content of the summary clearly match any of the existing folder themes?
+   - Are there key words or concepts in the summary that align with folder names?
+   - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
+
+4. Based on your analysis, provide your suggestion in one of these formats:
+   - If an existing folder is appropriate just return the ID of the folder
+   - If a new folder is needed return the suggested new folder name
+
+5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text."""
+
+        suggestion = llm_service.generate(prompt)
+
+        logger.info(f"Raw folder suggestion: {suggestion}")
+
+        # Try to extract a folder ID or name
+        folder_id_or_name = self.parse_folder_suggestion(suggestion)
+
+        if isinstance(folder_id_or_name, int):
+            # Check if the folder ID exists
+            if folder_service.get_folder(db, folder_id_or_name):
+                return folder_id_or_name
+            else:
+                logger.warning(f"Suggested folder ID {folder_id_or_name} does not exist. Creating a new folder.")
+                return self.create_new_folder(db, folder_structure['id'], suggestion)
+        elif isinstance(folder_id_or_name, str):
+            # Create a new folder with the suggested name
+            return self.create_new_folder(db, folder_structure['id'], folder_id_or_name)
+        else:
+            logger.warning(f"Could not parse folder suggestion: {suggestion}. Creating a new folder.")
+            return self.create_new_folder(db, folder_structure['id'], "Uncategorized")
+
+    def parse_folder_suggestion(self, suggestion: str) -> Union[int, str, None]:
+        # Try to extract a folder ID
+        id_match = re.search(r'\((\d+)\)|\d+', suggestion)
+        if id_match:
+            return int(id_match.group(1) if id_match.group(1) else id_match.group(0))
+
+        # If no ID is found, return the suggestion as a new folder name
+        return suggestion.strip()
+
+    def create_new_folder(self, db: Session, parent_id: int, folder_name: str) -> int:
+        db_folder = models.Folder(name=folder_name, parent_id=parent_id)
+        db.add(db_folder)
+        db.commit()
+        db.refresh(db_folder)
+        logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
+        return db_folder.id
+        
+# Initialize services
+favorite_service = FavoriteService()
+folder_service = FolderService()
+tag_service = TagService()
+nlp_service = NLPService()
+
+---
+
+File: server\tags_router.py
+
+# tags_router.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+
+from database import get_db
+import schemas
+from services import tag_service
+
+router = APIRouter()
+
+@router.post("/", response_model=schemas.Tag)
+def create_tag(tag: schemas.TagCreate, db: Session = Depends(get_db)):
+    return tag_service.create_tag(db, tag)
+
+@router.get("/{tag_id}", response_model=schemas.Tag)
+def read_tag(tag_id: int, db: Session = Depends(get_db)):
+    db_tag = tag_service.get_tag(db, tag_id)
+    if db_tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return db_tag
+
+@router.get("/", response_model=List[schemas.Tag])
+def read_tags(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return tag_service.get_tags(db, skip=skip, limit=limit)
+
+@router.put("/{tag_id}", response_model=schemas.Tag)
+def update_tag(tag_id: int, tag: schemas.TagCreate, db: Session = Depends(get_db)):
+    updated_tag = tag_service.update_tag(db, tag_id, tag)
+    if updated_tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return updated_tag
+
+@router.delete("/{tag_id}", response_model=schemas.Tag)
+def delete_tag(tag_id: int, db: Session = Depends(get_db)):
+    deleted_tag = tag_service.delete_tag(db, tag_id)
+    if deleted_tag is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return deleted_tag
+
+@router.get("/search/{query}", response_model=List[schemas.Tag])
+def search_tags(query: str, db: Session = Depends(get_db)):
+    return tag_service.search_tags(db, query)
+
+@router.get("/{tag_id}/favorites", response_model=List[schemas.Favorite])
+def get_tag_favorites(tag_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    favorites = tag_service.get_tag_favorites(db, tag_id, skip, limit)
+    if favorites is None:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    return favorites
+
+@router.post("/suggest", response_model=List[str])
+async def suggest_tags(content: str, db: Session = Depends(get_db)):
+    return await tag_service.suggest_tags(content)
+
+@router.get("/popular", response_model=List[schemas.Tag])
+def get_popular_tags(limit: int = 10, db: Session = Depends(get_db)):
+    return tag_service.get_popular_tags(db, limit)
+
+---
+
+File: server\task_queue.py
+
+from sqlalchemy import Column, String, JSON
+from sqlalchemy.orm import Session
+from database import Base, engine, SessionLocal
+from threading import Thread
+import asyncio
+import uuid
+import json
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String)
+    status = Column(String)
+    progress = Column(String)
+    result = Column(JSON)
+
+class TaskQueue:
+    def __init__(self):
+        self.init_db()
+
+    def init_db(self):
+        Base.metadata.create_all(bind=engine)
+
+    def add_task(self, task_func, task_name, *args, **kwargs):
+        task_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db_task = Task(id=task_id, name=task_name, status="pending", progress="0", result=None)
+            db.add(db_task)
+            db.commit()
+
+        Thread(target=self._run_task, args=(task_id, task_func, args, kwargs)).start()
+        return task_id
+
+    def _run_task(self, task_id, task_func, args, kwargs):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(task_func(task_id, *args, **kwargs))
+            self._update_task(task_id, "completed", "100", result)
+        except Exception as e:
+            self._update_task(task_id, "failed", "0", str(e))
+        finally:
+            loop.close()
+
+    def _update_task(self, task_id, status, progress, result):
+        with SessionLocal() as db:
+            task = db.query(Task).filter(Task.id == task_id).first()
+            if task:
+                task.status = status
+                task.progress = progress
+                task.result = result
+                db.commit()
+
+    def get_task_status(self, task_id):
+        with SessionLocal() as db:
+            task = db.query(Task).filter(Task.id == task_id).first()
+        if task:
+            return {
+                "id": task.id,
+                "name": task.name,
+                "status": task.status,
+                "progress": task.progress,
+                "result": task.result
+            }
+        return None
+
+    def get_all_tasks(self):
+        with SessionLocal() as db:
+            tasks = db.query(Task).order_by(Task.id.desc()).limit(10).all()
+        return [
+            {
+                "id": task.id,
+                "name": task.name,
+                "status": task.status,
+                "progress": task.progress
+            } for task in tasks
+        ]
+
+task_queue = TaskQueue()
+
+---
+
+File: server\testCreate.py
+
+import requests
+from bs4 import BeautifulSoup
+import time
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# API endpoint
+API_URL = "http://localhost:8000/api/favorites/"
+
+# List of tech-related websites with specific paths
+TECH_WEBSITES = [
+    "https://www.wired.com/category/artificial-intelligence/",
+    "https://techcrunch.com/category/startups/",
+    "https://www.theverge.com/tech",
+    "https://arstechnica.com/gadgets/",
+    "https://www.engadget.com/mobile/",
+    "https://www.cnet.com/tech/computing/",
+    "https://www.technologyreview.com/topic/artificial-intelligence/",
+    "https://www.anandtech.com/tag/cpus",
+    "https://www.tomshardware.com/reviews/gpu-hierarchy,4388.html",
+    "https://www.pcgamer.com/hardware/"
+]
+
+def get_webpage_title(url):
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+        title = soup.title.string if soup.title else "No title found"
+        return title.strip()
+    except requests.RequestException as e:
+        logging.error(f"Failed to fetch title for {url}. Error: {str(e)}")
+        return "Error fetching title"
+
+def generate_favorite(url):
+    title = get_webpage_title(url)
+    return {"url": url, "title": title}
+
+def create_favorite(favorite):
+    try:
+        response = requests.post(API_URL, json=favorite)
+        response.raise_for_status()
+        logging.info(f"Successfully created favorite: {favorite['title']}")
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to create favorite: {favorite['title']}. Error: {str(e)}")
+        return None
+
+def stress_test(num_favorites, delay):
+    successful_creations = 0
+    failed_creations = 0
+
+    start_time = time.time()
+
+    for i in range(num_favorites):
+        url = TECH_WEBSITES[i % len(TECH_WEBSITES)]
+        favorite = generate_favorite(url)
+        result = create_favorite(favorite)
+        
+        if result:
+            successful_creations += 1
+        else:
+            failed_creations += 1
+
+        time.sleep(delay)
+
+    end_time = time.time()
+    total_time = end_time - start_time
+
+    logging.info(f"\nStress test completed.")
+    logging.info(f"Total favorites attempted: {num_favorites}")
+    logging.info(f"Successful creations: {successful_creations}")
+    logging.info(f"Failed creations: {failed_creations}")
+    logging.info(f"Total time taken: {total_time:.2f} seconds")
+    logging.info(f"Average time per request: {total_time/num_favorites:.2f} seconds")
+
+if __name__ == "__main__":
+    num_favorites = 10  # Reduced number for demonstration, adjust as needed
+    delay = 1  # Increased delay to be more respectful to the websites
+
+    logging.info(f"Starting stress test with {num_favorites} favorites and {delay} second delay between requests.")
+    stress_test(num_favorites, delay)
+
+---
+
