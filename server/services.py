@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from llm import llm_service
 from rich import print as rprint
 import builtins
+import json
 
 builtins.print = rprint
 
@@ -269,10 +270,9 @@ class NLPService:
 {url}
 
 Your description should:
-1. Mention that this is a speculative description based solely on the URL.
-2. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
-3. Suggest possible content or purpose of the specific page based on the URL path.
-4. Use neutral language and avoid making definitive claims about the content.
+1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
+2. Suggest possible content or purpose of the specific page based on the URL path.
+3. Use neutral language and avoid making definitive claims about the content.
 
 Limit your response to 2-3 sentences."""
 
@@ -383,66 +383,128 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
 
         prompt = f"""You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
 
-1. First, you will be presented with a summary of a webpage:
+    1. First, you will be presented with a summary of a webpage:
 
-<summary>
-{summary}
-</summary>
+    <summary>
+    {summary}
+    </summary>
 
-2. Next, you will be given the existing folder structure:
+    2. Next, you will be given the existing folder structure:
 
-<folder_structure>
-{formatted_structure}
-</folder_structure>
+    <folder_structure>
+    {formatted_structure}
+    </folder_structure>
 
-3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
-   - Does the content of the summary clearly match any of the existing folder themes?
-   - Are there key words or concepts in the summary that align with folder names?
-   - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
+    3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
+    - Does the content of the summary clearly match any of the existing folder themes?
+    - Are there key words or concepts in the summary that align with folder names?
+    - If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
 
-4. Based on your analysis, provide your suggestion in one of these formats:
-   - If an existing folder is appropriate just return the ID of the folder
-   - If a new folder is needed return the suggested new folder name
+    4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
+    {{
+        "name": "Parent Folder Name",
+        "id": parent_folder_id,
+        "children": [
+        {{
+            "name": "Suggested Folder Name",
+            "id": suggested_folder_id  // Optional, include only if suggesting an existing folder
+        }}
+        ]
+    }}
 
-5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text."""
+    Examples:
+    1. Suggesting an existing folder:
+    {{
+        "name": "Development",
+        "id": 2,
+        "children": [
+        {{
+            "name": "Python",
+            "id": 5
+        }}
+        ]
+    }}
 
-        suggestion = llm_service.generate(prompt)
+    2. Suggesting a new folder:
+    {{
+        "name": "Technology",
+        "id": 3,
+        "children": [
+        {{
+            "name": "Artificial Intelligence"
+        }}
+        ]
+    }}
 
-        logger.info(f"Raw folder suggestion: {suggestion}")
+    5. IMPORTANT: Your response must contain ONLY the JSON structure. Do not include any explanations, justifications, or additional text."""
 
-        # Try to extract a folder ID or name
-        folder_id_or_name = self.parse_folder_suggestion(suggestion)
+        try:
+            suggestion = llm_service.generate(prompt)
+            suggestion_json = json.loads(suggestion)
+            print(suggestion_json)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse LLM response as JSON: {suggestion}")
+            return self.get_or_create_uncategorized_folder(db)
+        except Exception as e:
+            logger.error(f"Error generating folder suggestion: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
 
-        if isinstance(folder_id_or_name, int):
-            # Check if the folder ID exists
-            if folder_service.get_folder(db, folder_id_or_name):
-                return folder_id_or_name
-            else:
-                logger.warning(f"Suggested folder ID {folder_id_or_name} does not exist. Creating a new folder.")
-                return self.create_new_folder(db, folder_structure['id'], suggestion)
-        elif isinstance(folder_id_or_name, str):
-            # Create a new folder with the suggested name
-            return self.create_new_folder(db, folder_structure['id'], folder_id_or_name)
-        else:
-            logger.warning(f"Could not parse folder suggestion: {suggestion}. Creating a new folder.")
-            return self.create_new_folder(db, folder_structure['id'], "Uncategorized")
+        try:
+            parent_folder_id = suggestion_json.get('id')
+            suggested_folder = suggestion_json['children'][0]
 
-    def parse_folder_suggestion(self, suggestion: str) -> Union[int, str, None]:
-        # Try to extract a folder ID
-        id_match = re.search(r'\((\d+)\)|\d+', suggestion)
-        if id_match:
-            return int(id_match.group(1) if id_match.group(1) else id_match.group(0))
+            # Check if parent folder exists
+            parent_folder = folder_service.get_folder(db, parent_folder_id)
+            if not parent_folder:
+                logger.warning(f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder.")
+                parent_folder_id = folder_structure['id']  # Use root folder id
 
-        # If no ID is found, return the suggestion as a new folder name
-        return suggestion.strip()
+            if 'id' in suggested_folder:
+                # Check if the suggested folder exists
+                existing_folder = folder_service.get_folder(db, suggested_folder['id'])
+                if existing_folder:
+                    return existing_folder.id
+                else:
+                    logger.warning(f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder.")
+
+            # Create a new folder
+            return self.create_new_folder(db, parent_folder_id, suggested_folder['name'])
+
+        except KeyError as e:
+            logger.error(f"Invalid JSON structure in LLM response: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
+        except Exception as e:
+            logger.error(f"Error processing folder suggestion: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
 
     def create_new_folder(self, db: Session, parent_id: int, folder_name: str) -> int:
-        db_folder = models.Folder(name=folder_name, parent_id=parent_id)
-        db.add(db_folder)
-        db.commit()
-        db.refresh(db_folder)
-        logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
-        return db_folder.id
+        try:
+            db_folder = models.Folder(name=folder_name, parent_id=parent_id)
+            db.add(db_folder)
+            db.commit()
+            db.refresh(db_folder)
+            logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
+            return db_folder.id
+        except Exception as e:
+            logger.error(f"Error creating new folder: {str(e)}")
+            db.rollback()
+            return self.get_or_create_uncategorized_folder(db)
+
+    def get_or_create_uncategorized_folder(self, db: Session) -> int:
+        try:
+            uncategorized = db.query(models.Folder).filter(models.Folder.name == "Uncategorized").first()
+            if not uncategorized:
+                uncategorized = models.Folder(name="Uncategorized", parent_id=None)
+                db.add(uncategorized)
+                db.commit()
+                db.refresh(uncategorized)
+                logger.info(f"Created Uncategorized folder (ID: {uncategorized.id})")
+            return uncategorized.id
+        except Exception as e:
+            logger.error(f"Error getting or creating Uncategorized folder: {str(e)}")
+            db.rollback()
+            # If all else fails, return None or a default folder ID
+            return None  # or return a default folder ID if you have one
         
 # Initialize services
 favorite_service = FavoriteService()

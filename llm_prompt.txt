@@ -1861,176 +1861,502 @@ async def suggest_folder(favorite: schemas.FavoriteCreate, db: Session = Depends
 File: server\folder_structure.json
 
 {
-    "name": "Root",
-    "description": "Root folder for all categories",
-    "children": [
-      {
-        "name": "Work",
-        "description": "Work-related favorites",
-        "children": [
-          {
-            "name": "Projects",
-            "description": "Work projects",
-            "children": []
-          },
-          {
-            "name": "Tools",
-            "description": "Work-related tools"
-          },
-          {
-            "name": "References",
-            "description": "Work-related references"
-          }
-        ]
-      },
-      {
-        "name": "Development",
-        "description": "Development-related favorites",
-        "children": [
-          {
-            "name": "Languages",
-            "description": "Programming languages",
-            "children": [
-              {
-                "name": "HTML & CSS",
-                "description": "HTML and CSS resources"
-              },
-              {
-                "name": "JavaScript",
-                "description": "JavaScript resources"
-              },
-              {
-                "name": "Python",
-                "description": "Python resources"
-              },
-              {
-                "name": "PHP",
-                "description": "PHP resources"
-              }
-            ]
-          },
-          {
-            "name": "Frameworks",
-            "description": "Web frameworks",
-            "children": [
-              {
-                "name": "React",
-                "description": "React resources"
-              },
-              {
-                "name": "Angular",
-                "description": "Angular resources"
-              },
-              {
-                "name": "Vue.js",
-                "description": "Vue.js resources"
-              }
-            ]
-          },
-          {
-            "name": "Libraries",
-            "description": "Programming libraries",
-            "children": [
-              {
-                "name": "jQuery",
-                "description": "jQuery resources"
-              },
-              {
-                "name": "Bootstrap",
-                "description": "Bootstrap resources"
-              }
-            ]
-          },
-          {
-            "name": "Tools",
-            "description": "Development tools",
-            "children": [
-              {
-                "name": "IDEs",
-                "description": "Integrated Development Environments"
-              },
-              {
-                "name": "Version Control",
-                "description": "Version control systems"
-              }
-            ]
-          },
-          {
-            "name": "References",
-            "description": "Development references"
-          }
-        ]
-      },
-      {
-        "name": "Design",
-        "description": "Design-related favorites",
-        "children": [
-          {
-            "name": "Inspiration",
-            "description": "Design inspiration"
-          },
-          {
-            "name": "Tools",
-            "description": "Design tools",
-            "children": [
-              {
-                "name": "Mockups",
-                "description": "Mockup tools"
-              },
-              {
-                "name": "Wireframes",
-                "description": "Wireframe tools"
-              }
-            ]
-          },
-          {
-            "name": "References",
-            "description": "Design references"
-          }
-        ]
-      },
-      {
-        "name": "Productivity",
-        "description": "Productivity-related favorites",
-        "children": [
-          {
-            "name": "To Read",
-            "description": "Articles and resources to read"
-          },
-          {
-            "name": "To Watch",
-            "description": "Videos and presentations to watch"
-          },
-          {
-            "name": "To Try",
-            "description": "Tools and techniques to try"
-          }
-        ]
-      },
-      {
-        "name": "Personal",
-        "description": "Personal favorites",
-        "children": [
-          {
-            "name": "Hobbies",
-            "description": "Personal hobbies"
-          },
-          {
-            "name": "Travel",
-            "description": "Travel-related favorites"
-          },
-          {
-            "name": "Finance",
-            "description": "Personal finance resources"
-          }
-        ]
-      },
-      {
-        "name": "Uncategorized",
-        "description": "Uncategorized favorites"
-      }
-    ]
-  }
+  "name": "Root",
+  "description": "Root folder for all categories",
+  "children": [
+    {
+      "name": "Technology",
+      "description": "Technology-related favorites",
+      "children": [
+        {
+          "name": "Programming",
+          "description": "Programming-related resources"
+        },
+        {
+          "name": "Web Development",
+          "description": "Web development resources"
+        },
+        {
+          "name": "Mobile Development",
+          "description": "Mobile app development resources"
+        },
+        {
+          "name": "Data Science & AI",
+          "description": "Data science and artificial intelligence resources"
+        },
+        {
+          "name": "DevOps & Cloud Computing",
+          "description": "DevOps and cloud computing resources"
+        },
+        {
+          "name": "Cybersecurity",
+          "description": "Cybersecurity resources"
+        },
+        {
+          "name": "Blockchain & Cryptocurrency",
+          "description": "Resources on blockchain technology and cryptocurrency"
+        },
+        {
+          "name": "Open Source Projects",
+          "description": "Open source project resources"
+        },
+        {
+          "name": "Tech News & Blogs",
+          "description": "Technology news and blog resources"
+        },
+        {
+          "name": "Emerging Technologies",
+          "description": "Resources on VR, AR, IoT, and other emerging tech"
+        },
+        {
+          "name": "Hardware & Gadgets",
+          "description": "Information about the latest hardware and gadgets"
+        }
+      ]
+    },
+    {
+      "name": "Generative AI",
+      "description": "Resources related to generative AI technologies",
+      "children": [
+        {
+          "name": "AI Art & Creativity",
+          "description": "Resources for AI-generated art, music, and creative projects"
+        },
+        {
+          "name": "Text Generation",
+          "description": "Tools and resources for AI-based text generation"
+        },
+        {
+          "name": "AI Models & Frameworks",
+          "description": "Information on generative AI models like GPT, BERT, and DALL-E"
+        },
+        {
+          "name": "AI Ethics & Policy",
+          "description": "Discussions on ethics, policy, and implications of generative AI"
+        },
+        {
+          "name": "AI Tools & Software",
+          "description": "Software and tools for building and using generative AI models"
+        },
+        {
+          "name": "AI Tutorials & Guides",
+          "description": "Tutorials and guides for learning about generative AI"
+        },
+        {
+          "name": "AI News & Research",
+          "description": "Latest news, research papers, and articles on generative AI"
+        },
+        {
+          "name": "Communities & Forums",
+          "description": "Online communities and forums discussing generative AI"
+        }
+      ]
+    },
+    {
+      "name": "Learning & Resources",
+      "description": "Learning materials and resources",
+      "children": [
+        {
+          "name": "Online Courses",
+          "description": "Online course platforms and resources"
+        },
+        {
+          "name": "Tutorials & Guides",
+          "description": "Tutorials and how-to guides"
+        },
+        {
+          "name": "Books & eBooks",
+          "description": "Technical and educational books"
+        },
+        {
+          "name": "Podcasts & Webinars",
+          "description": "Educational podcasts and webinars"
+        },
+        {
+          "name": "Documentation & References",
+          "description": "Technical documentation and reference materials"
+        },
+        {
+          "name": "Academic Resources",
+          "description": "Scholarly articles, research papers, and academic databases"
+        },
+        {
+          "name": "Language Learning",
+          "description": "Resources for learning new languages"
+        },
+        {
+          "name": "Certifications & Exams",
+          "description": "Certification resources and exam preparation"
+        }
+      ]
+    },
+    {
+      "name": "Tools & Software",
+      "description": "Useful tools and software",
+      "children": [
+        {
+          "name": "Development Tools",
+          "description": "Software development tools"
+        },
+        {
+          "name": "Design Tools",
+          "description": "Graphic and UI/UX design tools"
+        },
+        {
+          "name": "Productivity Tools",
+          "description": "Tools for improving productivity"
+        },
+        {
+          "name": "Collaboration Tools",
+          "description": "Team collaboration and communication tools"
+        },
+        {
+          "name": "Automation Tools",
+          "description": "Tools for task and workflow automation"
+        },
+        {
+          "name": "Analytics & Monitoring",
+          "description": "Tools for data analytics and system monitoring"
+        },
+        {
+          "name": "Web Hosting & Domain Management",
+          "description": "Resources for web hosting and domain management"
+        },
+        {
+          "name": "File Management & Sharing",
+          "description": "Tools for managing and sharing files"
+        }
+      ]
+    },
+    {
+      "name": "Career & Networking",
+      "description": "Career development and networking resources",
+      "children": [
+        {
+          "name": "Job Boards & Opportunities",
+          "description": "Job listing sites and career opportunities"
+        },
+        {
+          "name": "Professional Networking",
+          "description": "Professional networking platforms and resources"
+        },
+        {
+          "name": "Conferences & Meetups",
+          "description": "Industry conferences and local meetups"
+        },
+        {
+          "name": "Mentorship & Coaching",
+          "description": "Mentorship programs and career coaching resources"
+        },
+        {
+          "name": "Skill Development",
+          "description": "Resources for developing professional skills"
+        },
+        {
+          "name": "Freelancing & Gig Economy",
+          "description": "Resources for freelancing and gig work"
+        }
+      ]
+    },
+    {
+      "name": "News & Current Events",
+      "description": "News sources and current events",
+      "children": [
+        {
+          "name": "World News",
+          "description": "International news sources"
+        },
+        {
+          "name": "Local News",
+          "description": "Local and regional news sources"
+        },
+        {
+          "name": "Business & Finance News",
+          "description": "Business and financial news resources"
+        },
+        {
+          "name": "Science & Technology News",
+          "description": "Science and technology news outlets"
+        },
+        {
+          "name": "Opinion & Analysis",
+          "description": "Opinion pieces and in-depth analysis"
+        },
+        {
+          "name": "Politics & Government",
+          "description": "Political news and government resources"
+        },
+        {
+          "name": "Environmental News",
+          "description": "News related to the environment and climate change"
+        }
+      ]
+    },
+    {
+      "name": "Hobbies & Lifestyle",
+      "description": "Personal interests and lifestyle resources",
+      "children": [
+        {
+          "name": "Travel & Adventure",
+          "description": "Travel tips, destinations, and adventure resources"
+        },
+        {
+          "name": "Food & Cooking",
+          "description": "Recipes, cooking techniques, and food blogs"
+        },
+        {
+          "name": "Health & Fitness",
+          "description": "Health tips, workout routines, and wellness resources"
+        },
+        {
+          "name": "Arts & Culture",
+          "description": "Art, music, and cultural resources"
+        },
+        {
+          "name": "Personal Finance & Investment",
+          "description": "Financial planning and investment resources"
+        },
+        {
+          "name": "DIY & Crafts",
+          "description": "Do-it-yourself projects and crafting resources"
+        },
+        {
+          "name": "Gardening & Home Improvement",
+          "description": "Gardening tips and home improvement resources"
+        },
+        {
+          "name": "Fashion & Style",
+          "description": "Fashion trends, styling tips, and clothing resources"
+        },
+        {
+          "name": "Mindfulness & Meditation",
+          "description": "Resources for mindfulness, meditation, and mental health"
+        }
+      ]
+    },
+    {
+      "name": "Entertainment",
+      "description": "Entertainment and media resources",
+      "children": [
+        {
+          "name": "Movies & TV Shows",
+          "description": "Movie and TV show recommendations and reviews"
+        },
+        {
+          "name": "Music & Podcasts",
+          "description": "Music streaming services and podcast directories"
+        },
+        {
+          "name": "Books & Literature",
+          "description": "Book recommendations and literary resources"
+        },
+        {
+          "name": "Gaming",
+          "description": "Video game news, reviews, and gaming platforms"
+        },
+        {
+          "name": "Streaming Services",
+          "description": "Online streaming platforms for various media"
+        },
+        {
+          "name": "Comics & Graphic Novels",
+          "description": "Resources for comics and graphic novels"
+        },
+        {
+          "name": "Humor & Memes",
+          "description": "Websites for humor, memes, and funny content"
+        }
+      ]
+    },
+    {
+      "name": "Social & Community",
+      "description": "Social media and community resources",
+      "children": [
+        {
+          "name": "Social Media Platforms",
+          "description": "Various social media websites and apps"
+        },
+        {
+          "name": "Forums & Discussion Boards",
+          "description": "Online communities and discussion platforms"
+        },
+        {
+          "name": "Blogging Platforms",
+          "description": "Websites for creating and hosting blogs"
+        },
+        {
+          "name": "Social Causes & Volunteering",
+          "description": "Resources for social causes and volunteer opportunities"
+        },
+        {
+          "name": "Virtual Communities",
+          "description": "Virtual communities and online social spaces"
+        },
+        {
+          "name": "Local Community Groups",
+          "description": "Resources for local community groups and events"
+        }
+      ]
+    },
+    {
+      "name": "E-commerce & Shopping",
+      "description": "Online shopping and e-commerce resources",
+      "children": [
+        {
+          "name": "Marketplaces",
+          "description": "Online marketplaces for various products"
+        },
+        {
+          "name": "Deals & Coupons",
+          "description": "Websites offering deals and discount coupons"
+        },
+        {
+          "name": "Product Reviews",
+          "description": "Sites with product reviews and buying guides"
+        },
+        {
+          "name": "Niche Shopping",
+          "description": "Specialty shopping websites for niche products"
+        },
+        {
+          "name": "Subscription Services",
+          "description": "Online subscription services for various products"
+        }
+      ]
+    },
+    {
+      "name": "Science & Nature",
+      "description": "Resources on science, nature, and the environment",
+      "children": [
+        {
+          "name": "Astronomy & Space",
+          "description": "Resources on astronomy and space exploration"
+        },
+        {
+          "name": "Biology & Life Sciences",
+          "description": "Information about biology and life sciences"
+        },
+        {
+          "name": "Earth Sciences & Environment",
+          "description": "Resources on geology, meteorology, and environmental science"
+        },
+        {
+          "name": "Physics & Chemistry",
+          "description": "Resources on physics, chemistry, and related sciences"
+        },
+        {
+          "name": "Ecology & Conservation",
+          "description": "Resources on ecology, wildlife, and conservation efforts"
+        }
+      ]
+    },
+    {
+      "name": "History & Humanities",
+      "description": "Resources on history, philosophy, and humanities",
+      "children": [
+        {
+          "name": "World History",
+          "description": "Resources on global historical events and periods"
+        },
+        {
+          "name": "Philosophy",
+          "description": "Philosophical texts, discussions, and resources"
+        },
+        {
+          "name": "Archaeology",
+          "description": "Information on archaeological findings and research"
+        },
+        {
+          "name": "Cultural Studies",
+          "description": "Resources on cultural studies and anthropology"
+        },
+        {
+          "name": "Religious Studies",
+          "description": "Resources on world religions and spiritual practices"
+        }
+      ]
+    },
+    {
+      "name": "Art & Design",
+      "description": "Resources on art, design, and creativity",
+      "children": [
+        {
+          "name": "Visual Arts",
+          "description": "Resources for painting, drawing, and visual arts"
+        },
+        {
+          "name": "Graphic Design",
+          "description": "Resources for graphic design and digital art"
+        },
+        {
+          "name": "Photography",
+          "description": "Photography tips, tutorials, and galleries"
+        },
+        {
+          "name": "Architecture",
+          "description": "Resources on architecture and architectural design"
+        },
+        {
+          "name": "Interior Design",
+          "description": "Resources for interior design and home decor"
+        }
+      ]
+    },
+    {
+      "name": "Health & Wellness",
+      "description": "Resources on health, wellness, and medical information",
+      "children": [
+        {
+          "name": "General Health",
+          "description": "General health tips and medical information"
+        },
+        {
+          "name": "Mental Health",
+          "description": "Resources for mental health and wellness"
+        },
+        {
+          "name": "Nutrition & Diet",
+          "description": "Information on nutrition, diets, and healthy eating"
+        },
+        {
+          "name": "Exercise & Fitness",
+          "description": "Workout routines, fitness tips, and exercise guides"
+        },
+        {
+          "name": "Alternative Medicine",
+          "description": "Resources on alternative and holistic medicine"
+        }
+      ]
+    },
+    {
+      "name": "Miscellaneous",
+      "description": "Miscellaneous resources that don't fit into other categories",
+      "children": [
+        {
+          "name": "Fun & Humor",
+          "description": "Websites for fun, humor, and memes"
+        },
+        {
+          "name": "Puzzles & Brain Teasers",
+          "description": "Online puzzles, riddles, and brain teasers"
+        },
+        {
+          "name": "Quizzes & Trivia",
+          "description": "Quizzes, trivia games, and knowledge tests"
+        },
+        {
+          "name": "Random Generators",
+          "description": "Tools that generate random content or ideas"
+        }
+      ]
+    },
+    {
+      "name": "Uncategorized",
+      "description": "Uncategorized favorites"
+    }
+  ]
+}
+
 
 ---
 
@@ -2534,6 +2860,7 @@ from urllib.parse import urlparse
 from llm import llm_service
 from rich import print as rprint
 import builtins
+import json
 
 builtins.print = rprint
 
@@ -2784,10 +3111,9 @@ class NLPService:
 {url}
 
 Your description should:
-1. Mention that this is a speculative description based solely on the URL.
-2. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
-3. Suggest possible content or purpose of the specific page based on the URL path.
-4. Use neutral language and avoid making definitive claims about the content.
+1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
+2. Suggest possible content or purpose of the specific page based on the URL path.
+3. Use neutral language and avoid making definitive claims about the content.
 
 Limit your response to 2-3 sentences."""
 
@@ -2898,66 +3224,128 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
 
         prompt = f"""You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
 
-1. First, you will be presented with a summary of a webpage:
+    1. First, you will be presented with a summary of a webpage:
 
-<summary>
-{summary}
-</summary>
+    <summary>
+    {summary}
+    </summary>
 
-2. Next, you will be given the existing folder structure:
+    2. Next, you will be given the existing folder structure:
 
-<folder_structure>
-{formatted_structure}
-</folder_structure>
+    <folder_structure>
+    {formatted_structure}
+    </folder_structure>
 
-3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
-   - Does the content of the summary clearly match any of the existing folder themes?
-   - Are there key words or concepts in the summary that align with folder names?
-   - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
+    3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
+    - Does the content of the summary clearly match any of the existing folder themes?
+    - Are there key words or concepts in the summary that align with folder names?
+    - If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
 
-4. Based on your analysis, provide your suggestion in one of these formats:
-   - If an existing folder is appropriate just return the ID of the folder
-   - If a new folder is needed return the suggested new folder name
+    4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
+    {{
+        "name": "Parent Folder Name",
+        "id": parent_folder_id,
+        "children": [
+        {{
+            "name": "Suggested Folder Name",
+            "id": suggested_folder_id  // Optional, include only if suggesting an existing folder
+        }}
+        ]
+    }}
 
-5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text."""
+    Examples:
+    1. Suggesting an existing folder:
+    {{
+        "name": "Development",
+        "id": 2,
+        "children": [
+        {{
+            "name": "Python",
+            "id": 5
+        }}
+        ]
+    }}
 
-        suggestion = llm_service.generate(prompt)
+    2. Suggesting a new folder:
+    {{
+        "name": "Technology",
+        "id": 3,
+        "children": [
+        {{
+            "name": "Artificial Intelligence"
+        }}
+        ]
+    }}
 
-        logger.info(f"Raw folder suggestion: {suggestion}")
+    5. IMPORTANT: Your response must contain ONLY the JSON structure. Do not include any explanations, justifications, or additional text."""
 
-        # Try to extract a folder ID or name
-        folder_id_or_name = self.parse_folder_suggestion(suggestion)
+        try:
+            suggestion = llm_service.generate(prompt)
+            suggestion_json = json.loads(suggestion)
+            print(suggestion_json)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse LLM response as JSON: {suggestion}")
+            return self.get_or_create_uncategorized_folder(db)
+        except Exception as e:
+            logger.error(f"Error generating folder suggestion: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
 
-        if isinstance(folder_id_or_name, int):
-            # Check if the folder ID exists
-            if folder_service.get_folder(db, folder_id_or_name):
-                return folder_id_or_name
-            else:
-                logger.warning(f"Suggested folder ID {folder_id_or_name} does not exist. Creating a new folder.")
-                return self.create_new_folder(db, folder_structure['id'], suggestion)
-        elif isinstance(folder_id_or_name, str):
-            # Create a new folder with the suggested name
-            return self.create_new_folder(db, folder_structure['id'], folder_id_or_name)
-        else:
-            logger.warning(f"Could not parse folder suggestion: {suggestion}. Creating a new folder.")
-            return self.create_new_folder(db, folder_structure['id'], "Uncategorized")
+        try:
+            parent_folder_id = suggestion_json.get('id')
+            suggested_folder = suggestion_json['children'][0]
 
-    def parse_folder_suggestion(self, suggestion: str) -> Union[int, str, None]:
-        # Try to extract a folder ID
-        id_match = re.search(r'\((\d+)\)|\d+', suggestion)
-        if id_match:
-            return int(id_match.group(1) if id_match.group(1) else id_match.group(0))
+            # Check if parent folder exists
+            parent_folder = folder_service.get_folder(db, parent_folder_id)
+            if not parent_folder:
+                logger.warning(f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder.")
+                parent_folder_id = folder_structure['id']  # Use root folder id
 
-        # If no ID is found, return the suggestion as a new folder name
-        return suggestion.strip()
+            if 'id' in suggested_folder:
+                # Check if the suggested folder exists
+                existing_folder = folder_service.get_folder(db, suggested_folder['id'])
+                if existing_folder:
+                    return existing_folder.id
+                else:
+                    logger.warning(f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder.")
+
+            # Create a new folder
+            return self.create_new_folder(db, parent_folder_id, suggested_folder['name'])
+
+        except KeyError as e:
+            logger.error(f"Invalid JSON structure in LLM response: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
+        except Exception as e:
+            logger.error(f"Error processing folder suggestion: {str(e)}")
+            return self.get_or_create_uncategorized_folder(db)
 
     def create_new_folder(self, db: Session, parent_id: int, folder_name: str) -> int:
-        db_folder = models.Folder(name=folder_name, parent_id=parent_id)
-        db.add(db_folder)
-        db.commit()
-        db.refresh(db_folder)
-        logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
-        return db_folder.id
+        try:
+            db_folder = models.Folder(name=folder_name, parent_id=parent_id)
+            db.add(db_folder)
+            db.commit()
+            db.refresh(db_folder)
+            logger.info(f"Created new folder: {db_folder.name} (ID: {db_folder.id})")
+            return db_folder.id
+        except Exception as e:
+            logger.error(f"Error creating new folder: {str(e)}")
+            db.rollback()
+            return self.get_or_create_uncategorized_folder(db)
+
+    def get_or_create_uncategorized_folder(self, db: Session) -> int:
+        try:
+            uncategorized = db.query(models.Folder).filter(models.Folder.name == "Uncategorized").first()
+            if not uncategorized:
+                uncategorized = models.Folder(name="Uncategorized", parent_id=None)
+                db.add(uncategorized)
+                db.commit()
+                db.refresh(uncategorized)
+                logger.info(f"Created Uncategorized folder (ID: {uncategorized.id})")
+            return uncategorized.id
+        except Exception as e:
+            logger.error(f"Error getting or creating Uncategorized folder: {str(e)}")
+            db.rollback()
+            # If all else fails, return None or a default folder ID
+            return None  # or return a default folder ID if you have one
         
 # Initialize services
 favorite_service = FavoriteService()
