@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const titleInput = document.getElementById('titleInput');
   const addButton = document.getElementById('addButton');
   const adminButton = document.getElementById('adminButton');
+  const mainPageLink = document.getElementById('mainPageLink');
   const messageDiv = document.getElementById('message');
 
   // Get the current tab's title and URL
@@ -40,5 +41,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   adminButton.addEventListener('click', function() {
     chrome.tabs.create({url: 'http://localhost:8000/admin'});
+  });
+
+  mainPageLink.addEventListener('click', function(e) {
+    e.preventDefault();
+    chrome.tabs.create({url: 'http://localhost:8000/'});
   });
 });

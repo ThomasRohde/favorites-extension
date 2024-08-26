@@ -1,25 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Intelligent Favorites</title>
-  <style>
-    body {
-      width: 300px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-    }
-    input, button {
-      width: 100%;
-      margin-bottom: 10px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Favorites</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 300px;
+            padding: 16px;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #106ebe;
+        }
+        #message {
+            margin-top: 12px;
+            font-weight: bold;
+        }
+        .link {
+            display: block;
+            margin-top: 12px;
+            color: #0078d4;
+            text-decoration: none;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-  <h2>Add Favorite</h2>
-  <input type="text" id="titleInput" placeholder="Title">
-  <button id="addButton">Add Favorite</button>
-  <button id="adminButton">Open Admin Page</button>
-  <div id="message"></div>
-  <script src="popup.js"></script>
+    <h1>Add Favorite</h1>
+    <input type="text" id="titleInput" placeholder="Title">
+    <button id="addButton">Add Favorite</button>
+    <button id="adminButton">Open Admin Page</button>
+    <a href="#" id="mainPageLink" class="link">Open Main Page</a>
+    <div id="message"></div>
+    <script src="popup.js"></script>
 </body>
 </html>
