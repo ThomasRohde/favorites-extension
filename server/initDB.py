@@ -98,7 +98,7 @@ def print_folder_structure(folder, level=0):
     for child in folder.children:
         print_folder_structure(child, level + 1)
 
-root = session.query(Folder).filter(Folder.name == "Root").first()
+root = session.query(Folder).filter(Folder.name == "Favorites").first()
 print("\nFolder structure:")
 print_folder_structure(root)
 

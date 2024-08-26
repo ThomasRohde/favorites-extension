@@ -39,10 +39,6 @@ def delete_folder(folder_id: int, move_to_parent: bool = False, db: Session = De
         raise HTTPException(status_code=404, detail="Folder not found")
     return deleted_folder
 
-@router.get("/structure", response_model=schemas.FolderWithChildren)
-def get_folder_structure(db: Session = Depends(get_db)):
-    return folder_service.get_folder_structure(db)
-
 @router.post("/{folder_id}/move", response_model=schemas.Folder)
 def move_folder(folder_id: int, new_parent_id: int, db: Session = Depends(get_db)):
     moved_folder = folder_service.move_folder(db, folder_id, new_parent_id)
