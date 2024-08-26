@@ -12,7 +12,15 @@ from typing import Union
 from task_queue import task_queue
 from database import SessionLocal, engine
 import asyncio
-import ollama
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry  # Updated import statement
+import random
+from urllib.parse import urlparse
+from llm import llm_service
+from rich import print as rprint
+import builtins
+
+builtins.print = rprint
 
 logger = logging.getLogger(__name__)
 
@@ -203,39 +211,104 @@ class TagService:
 
 # NLP Service
 class NLPService:
+    def __init__(self):
+        self.session = requests.Session()
+        retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+        self.session.mount('http://', HTTPAdapter(max_retries=retries))
+        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    def get_random_user_agent(self):
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59'
+        ]
+        return random.choice(user_agents)
+
+    async def fetch_with_retries(self, url, max_retries=3):
+        for attempt in range(max_retries):
+            headers = {
+                'User-Agent': self.get_random_user_agent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.google.com/',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+
+            try:
+                await asyncio.sleep(random.uniform(1, 3))  # Random delay
+                response = await asyncio.to_thread(
+                    self.session.get, url, headers=headers, timeout=15
+                )
+                response.raise_for_status()
+                return response
+            except requests.HTTPError as e:
+                if e.response.status_code == 403:
+                    logger.warning(f"403 Forbidden encountered on attempt {attempt + 1}. Retrying...")
+                    if attempt == max_retries - 1:
+                        logger.error(f"Max retries reached for URL {url}. Unable to fetch content.")
+                        raise
+                else:
+                    raise
+            except requests.RequestException as e:
+                logger.error(f"Error fetching URL {url} on attempt {attempt + 1}: {str(e)}")
+                if attempt == max_retries - 1:
+                    raise
+
+    def generate_fallback_description(self, url: str) -> str:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        path = parsed_url.path
+
+        prompt = f"""Generate a brief, general description for a webpage based only on its URL. The URL is:
+
+{url}
+
+Your description should:
+1. Mention that this is a speculative description based solely on the URL.
+2. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
+3. Suggest possible content or purpose of the specific page based on the URL path.
+4. Use neutral language and avoid making definitive claims about the content.
+
+Limit your response to 2-3 sentences."""
+
+        return llm_service.generate(prompt)
+
     async def summarize_content(self, url: str) -> str:
-        response = requests.get(url)
-        soup = BeautifulSoup(response.content, 'html.parser')
+        try:
+            response = await self.fetch_with_retries(url)
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract meta information
-        meta_description = soup.find('meta', attrs={'name': 'description'})
-        meta_keywords = soup.find('meta', attrs={'name': 'keywords'})
-        og_title = soup.find('meta', attrs={'property': 'og:title'})
-        og_description = soup.find('meta', attrs={'property': 'og:description'})
+            # Extract meta information
+            meta_info = {}
+            meta_tags = soup.find_all('meta')
+            for tag in meta_tags:
+                if 'name' in tag.attrs and tag.attrs['name'].lower() in ['description', 'keywords']:
+                    meta_info[tag.attrs['name'].lower()] = tag.attrs.get('content', '')
+                elif 'property' in tag.attrs and tag.attrs['property'].lower() in ['og:title', 'og:description']:
+                    meta_info[tag.attrs['property'].lower()] = tag.attrs.get('content', '')
 
-        # Combine meta information
-        meta_info = ""
-        if meta_description:
-            meta_info += f"Description: {meta_description['content']}\n"
-        if meta_keywords:
-            meta_info += f"Keywords: {meta_keywords['content']}\n"
-        if og_title:
-            meta_info += f"Title: {og_title['content']}\n"
-        if og_description:
-            meta_info += f"OG Description: {og_description['content']}\n"
+            # Combine meta information
+            meta_text = "\n".join([f"{key.capitalize()}: {value}" for key, value in meta_info.items() if value])
 
-        # If meta information is insufficient, scrape content
-        if len(meta_info.strip()) < 100:
-            content = soup.get_text()
-            content = ' '.join(content.split())  # Remove extra whitespace
-            content = content[:3000]  # Limit content to first 3000 characters
-        else:
-            content = ""
+            # If meta information is insufficient, scrape content
+            if len(meta_text.strip()) < 100:
+                # Extract text from specific tags
+                content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                content = ' '.join([tag.get_text(strip=True) for tag in content_tags])
+                content = ' '.join(content.split())  # Remove extra whitespace
+                content = content[:3000]  # Limit content to first 3000 characters
+            else:
+                content = ""
 
-        prompt = f"""You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
+            prompt = f"""You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
 
 <webpage_info>
-{meta_info}
+{meta_text}
 {content}
 </webpage_info>
 
@@ -248,8 +321,12 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 
 Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
 
-        response = ollama.generate(model='phi3.5', prompt=prompt)
-        return response['response']
+            return llm_service.generate(prompt)
+
+        except requests.RequestException as e:
+            logger.error(f"Error fetching URL {url}: {str(e)}")
+            return self.generate_fallback_description(url)
+
     
     async def suggest_tags(self, summary: str) -> List[str]:
         prompt = f"""You are tasked with suggesting 3-5 relevant tags for the following summary:
@@ -274,9 +351,9 @@ tag1, tag2, tag3, tag4, tag5
 Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
 IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!"""
 
-        response = ollama.generate(model='phi3.5', prompt=prompt)
+        response = llm_service.generate(prompt)
         # Clean up the response: remove everything after the first newline and split by comma
-        cleaned_response = response['response'].split('\n')[0]
+        cleaned_response = response.split('\n')[0]
         tags = cleaned_response.split(',')
         
         # Strip whitespace and filter out any empty tags
@@ -324,13 +401,12 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
    - If no existing folder seems appropriate, what new folder name would best categorize this webpage?
 
 4. Based on your analysis, provide your suggestion in one of these formats:
-   - If an existing folder is appropriate: [number]
-   - If a new folder is needed: [folder name]
+   - If an existing folder is appropriate just return the ID of the folder
+   - If a new folder is needed return the suggested new folder name
 
 5. IMPORTANT: Your response must contain ONLY the folder ID number or new folder name suggestion. Do not include any explanations, justifications, or additional text."""
 
-        response = ollama.generate(model='phi3.5', prompt=prompt)
-        suggestion = response['response'].strip()
+        suggestion = llm_service.generate(prompt)
 
         logger.info(f"Raw folder suggestion: {suggestion}")
 

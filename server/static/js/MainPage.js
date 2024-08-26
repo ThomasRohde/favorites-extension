@@ -299,10 +299,10 @@ const MainPage = () => {
               (favorite.tags || []).map(tag => 
                 React.createElement('span', {
                   key: tag.id,
-                  className: 'bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-sm mr-2 mb-2'
+                  className: 'bg-gray-200 text-gray-700 px-1 py-0.5 rounded-full text-xs mr-1 mb-1'
                 }, tag.name)
               )
-            )
+            )            
           )
         )
       )
