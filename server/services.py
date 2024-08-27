@@ -22,6 +22,7 @@ import builtins
 import json
 from jinja2 import Environment, FileSystemLoader
 import os
+from content_extractor import ContentExtractor
 
 builtins.print = rprint
 
@@ -220,6 +221,9 @@ class NLPService:
         template_dir = os.path.join(os.path.dirname(__file__), 'templates')
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
+        # Initialize ContentExtractor
+        self.content_extractor = ContentExtractor(self.fetch_with_retries)
+
     def get_random_user_agent(self):
         user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -274,30 +278,7 @@ class NLPService:
 
     async def summarize_content(self, url: str) -> str:
         try:
-            response = await self.fetch_with_retries(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Extract meta information
-            meta_info = {}
-            meta_tags = soup.find_all('meta')
-            for tag in meta_tags:
-                if 'name' in tag.attrs and tag.attrs['name'].lower() in ['description', 'keywords']:
-                    meta_info[tag.attrs['name'].lower()] = tag.attrs.get('content', '')
-                elif 'property' in tag.attrs and tag.attrs['property'].lower() in ['og:title', 'og:description']:
-                    meta_info[tag.attrs['property'].lower()] = tag.attrs.get('content', '')
-
-            # Combine meta information
-            meta_text = "\n".join([f"{key.capitalize()}: {value}" for key, value in meta_info.items() if value])
-
-            # If meta information is insufficient, scrape content
-            if len(meta_text.strip()) < 100:
-                # Extract text from specific tags
-                content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-                content = ' '.join([tag.get_text(strip=True) for tag in content_tags])
-                content = ' '.join(content.split())  # Remove extra whitespace
-                content = content[:3000]  # Limit content to first 3000 characters
-            else:
-                content = ""
+            meta_text, content = await self.content_extractor.extract_content(url)
 
             template = self.jinja_env.get_template('summarize_content.j2')
             prompt = template.render(meta_text=meta_text, content=content)

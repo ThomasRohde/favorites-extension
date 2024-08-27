@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (30%), Markdown (7%), JavaScript (4%), JSON (4%), HTML (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (32%), Markdown (6%), JavaScript (4%), JSON (4%), HTML (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -25,7 +25,13 @@ The following is a concise directory tree of the project, limited to 3 levels de
 │   ├── services.py
 │   ├── tags_router.py
 │   ├── task_queue.py
-│   └── testCreate.py
+│   ├── testCreate.py
+│   ├── templates
+│   │   ├── generate_fallback_description.j2
+│   │   ├── suggest_folder.j2
+│   │   ├── suggest_tags.j2
+│   │   └── summarize_content.j2
+│   └── requirements.txt
 ├── extension
 │   ├── background.js
 │   ├── manifest.json
@@ -2271,6 +2277,7 @@ import builtins
 import json
 from jinja2 import Environment, FileSystemLoader
 import os
+from content_extractor import ContentExtractor
 
 builtins.print = rprint
 
@@ -2469,6 +2476,9 @@ class NLPService:
         template_dir = os.path.join(os.path.dirname(__file__), 'templates')
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
+        # Initialize ContentExtractor
+        self.content_extractor = ContentExtractor(self.fetch_with_retries)
+
     def get_random_user_agent(self):
         user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -2523,30 +2533,7 @@ class NLPService:
 
     async def summarize_content(self, url: str) -> str:
         try:
-            response = await self.fetch_with_retries(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Extract meta information
-            meta_info = {}
-            meta_tags = soup.find_all('meta')
-            for tag in meta_tags:
-                if 'name' in tag.attrs and tag.attrs['name'].lower() in ['description', 'keywords']:
-                    meta_info[tag.attrs['name'].lower()] = tag.attrs.get('content', '')
-                elif 'property' in tag.attrs and tag.attrs['property'].lower() in ['og:title', 'og:description']:
-                    meta_info[tag.attrs['property'].lower()] = tag.attrs.get('content', '')
-
-            # Combine meta information
-            meta_text = "\n".join([f"{key.capitalize()}: {value}" for key, value in meta_info.items() if value])
-
-            # If meta information is insufficient, scrape content
-            if len(meta_text.strip()) < 100:
-                # Extract text from specific tags
-                content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-                content = ' '.join([tag.get_text(strip=True) for tag in content_tags])
-                content = ' '.join(content.split())  # Remove extra whitespace
-                content = content[:3000]  # Limit content to first 3000 characters
-            else:
-                content = ""
+            meta_text, content = await self.content_extractor.extract_content(url)
 
             template = self.jinja_env.get_template('summarize_content.j2')
             prompt = template.render(meta_text=meta_text, content=content)
@@ -2907,6 +2894,155 @@ if __name__ == "__main__":
 
     logging.info(f"Starting stress test with {num_favorites} favorites and {delay} second delay between requests.")
     stress_test(num_favorites, delay)
+
+---
+
+File: server\templates\generate_fallback_description.j2
+
+Generate a brief, general description for a webpage based only on its URL. The URL is:
+
+{{ url }}
+
+Your description should:
+1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
+2. Suggest possible content or purpose of the specific page based on the URL path.
+3. Use neutral language and avoid making definitive claims about the content.
+
+Limit your response to 2-3 sentences.
+
+---
+
+File: server\templates\suggest_folder.j2
+
+You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
+
+1. First, you will be presented with a summary of a webpage:
+
+<summary>
+{{ summary }}
+</summary>
+
+2. Next, you will be given the existing folder structure:
+
+<folder_structure>
+{{ formatted_structure }}
+</folder_structure>
+
+3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
+- Does the content of the summary clearly match any of the existing folder themes?
+- Are there key words or concepts in the summary that align with folder names?
+- If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
+
+4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
+{
+    "name": "Parent Folder Name",
+    "id": parent_folder_id,
+    "children": [
+    {
+        "name": "Suggested Folder Name",
+        "id": suggested_folder_id  // Optional, include only if suggesting an existing folder
+    }
+    ]
+}
+
+Examples:
+1. Suggesting an existing folder:
+{
+    "name": "Development",
+    "id": 2,
+    "children": [
+    {
+        "name": "Python",
+        "id": 5
+    }
+    ]
+}
+
+2. Suggesting a new folder:
+{
+    "name": "Technology",
+    "id": 3,
+    "children": [
+    {
+        "name": "Artificial Intelligence"
+    }
+    ]
+}
+
+5. IMPORTANT: Your response must contain ONLY the JSON structure. Do not include any explanations, justifications, or additional text.
+
+---
+
+File: server\templates\suggest_tags.j2
+
+You are tasked with suggesting 3-5 relevant tags for the following summary:
+
+<summary>
+{{ summary }}
+</summary>
+
+Your goal is to generate tags that accurately represent the main topics, themes, or key elements discussed in the summary. Follow these guidelines when selecting tags:
+
+1. Choose tags that are concise, typically consisting of one or two words.
+2. Focus on the most prominent and important concepts in the summary.
+3. Avoid overly generic tags that could apply to almost any text.
+4. Ensure the tags are diverse and cover different aspects of the summary.
+5. If applicable, include tags related to the subject matter, industry, or field of study.
+
+Provide your answer as a comma-separated list of tags, without any additional text or explanation. The list should contain a minimum of 3 tags and a maximum of 5 tags.
+
+Example output format:
+tag1, tag2, tag3, tag4, tag5
+
+Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
+IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!
+
+---
+
+File: server\templates\summarize_content.j2
+
+You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
+
+<webpage_info>
+{{ meta_text }}
+{{ content }}
+</webpage_info>
+
+Please create a summary of 2-3 sentences that describes the webpage and its main topic or purpose. Your summary should:
+
+1. Identify the type of webpage (e.g., article, product page, blog post, etc.)
+2. Explain the main subject or theme of the content
+3. Highlight any key features or important information presented on the page
+4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
+
+Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary.
+
+IMPORTANT! Use assertive language when describing the webpage. Do NOT use language like 'appears to be' or 'is likely'.
+
+---
+
+File: server\requirements.txt
+
+fastapi
+uvicorn
+sqlalchemy
+chromadb
+pydantic
+beautifulsoup4
+requests
+python-multipart
+python-jose
+passlib
+bcrypt
+pywin32; sys_platform == "win32"
+ollama
+pytest
+httpx
+aiohttp
+openai
+jinja2
+pystray
+pillow
 
 ---
 
