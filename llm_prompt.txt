@@ -2624,8 +2624,19 @@ class NLPService:
         cleaned_response = response.split("\n")[0]
         tags = cleaned_response.split(",")
 
-        # Strip whitespace and filter out any empty tags
-        return [tag.strip() for tag in tags if tag.strip()]
+        # Strip whitespace, replace "-" or "_" with space, capitalize first letter, and filter out any empty tags
+        formatted_tags = []
+        for tag in tags:
+            tag = tag.strip()
+            if tag:
+                # Replace "-" or "_" with space
+                tag = tag.replace("-", " ").replace("_", " ")
+                # Capitalize the first character if it's a letter
+                if tag[0].isalpha():
+                    tag = tag[0].upper() + tag[1:]
+                formatted_tags.append(tag)
+
+        return formatted_tags
 
     def get_folder_structure(self, db: Session):
         def build_structure(folder, level=0):
