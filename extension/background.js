@@ -10,13 +10,11 @@ function setIconForTheme(isDarkTheme) {
     96: "icons8-favorite-light-96.png"
   };
 
-  chrome.browserAction.setIcon({ path: iconPath });
+  chrome.action.setIcon({ path: iconPath });
 }
 
 // Function to check if the current theme is dark
 function isDarkTheme(theme) {
-  // This is a simple check. You might need to adjust this logic
-  // depending on how you want to determine if a theme is "dark"
   return theme && theme.colors && theme.colors.toolbar &&
     theme.colors.toolbar.startsWith('rgb(') &&
     parseInt(theme.colors.toolbar.split(',')[0].split('(')[1]) < 128;
@@ -44,5 +42,18 @@ chrome.windows.onCreated.addListener(() => {
   });
 });
 
-// Your existing initialization code can go here
+// Listen for messages from the popup or content scripts
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "getCurrentTabInfo") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        sendResponse({ url: tabs[0].url, title: tabs[0].title });
+      } else {
+        sendResponse({ error: "No active tab found" });
+      }
+    });
+    return true; // Indicates that the response is sent asynchronously
+  }
+});
+
 console.log('Intelligent Favorites extension background script running.');
