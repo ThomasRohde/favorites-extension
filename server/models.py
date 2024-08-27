@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -30,7 +30,7 @@ class Favorite(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, nullable=False)
     title = Column(String)
-    summary = Column(String)
+    summary = Column(Text)
     folder_id = Column(Integer, ForeignKey('folders.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -41,6 +41,7 @@ class FavoriteBase(BaseModel):
 class FavoriteCreate(FavoriteBase):
     folder_id: Optional[int] = None
     tags: Optional[List[str]] = None
+    metadata: Optional[str] = None  # Include metadata for creation, but don't persist it
 
 class FavoriteUpdate(BaseModel):
     title: Optional[str] = None
@@ -56,14 +57,7 @@ class Favorite(FavoriteBase):
     tags: List[Tag] = []
 
     class Config:
-        from_attributes = True  # Changed from orm_mode = True
-
-class FavoriteCreate(BaseModel):
-    url: HttpUrl
-    title: Optional[str] = None
-    summary: Optional[str] = None
-    folder_id: Optional[int] = None
-    tags: Optional[List[str]] = None
+        orm_mode = True
 
 # Schemas for nested relationships
 class FolderWithChildren(Folder):
@@ -71,7 +65,7 @@ class FolderWithChildren(Folder):
     favorites: List[Favorite] = []
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class TaskStatus(BaseModel):
     id: str

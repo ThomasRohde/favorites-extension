@@ -1,7 +1,10 @@
 You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
 
 <webpage_info>
-{{ meta_text }}
+Metadata:
+{{ metadata }}
+
+Content:
 {{ content }}
 </webpage_info>
 
@@ -12,6 +15,6 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 3. Highlight any key features or important information presented on the page
 4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
 
-Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary.
+Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the metadata when available, and fall back to the content when necessary. DO NOT write anything but the summary.
 
 IMPORTANT! Use assertive language when describing the webpage. Do NOT use language like 'appears to be' or 'is likely'.

@@ -1,15 +1,19 @@
-You are tasked with suggesting 3-5 relevant tags for the following summary:
+You are tasked with suggesting 3-5 relevant tags for the following webpage summary and metadata:
 
 <summary>
 {{ summary }}
 </summary>
 
-Your goal is to generate tags that accurately represent the main topics, themes, or key elements discussed in the summary. Follow these guidelines when selecting tags:
+<metadata>
+{{ metadata }}
+</metadata>
+
+Your goal is to generate tags that accurately represent the main topics, themes, or key elements discussed in the summary and metadata. Follow these guidelines when selecting tags:
 
 1. Choose tags that are concise, typically consisting of one or two words.
-2. Focus on the most prominent and important concepts in the summary.
+2. Focus on the most prominent and important concepts in the summary and metadata.
 3. Avoid overly generic tags that could apply to almost any text.
-4. Ensure the tags are diverse and cover different aspects of the summary.
+4. Ensure the tags are diverse and cover different aspects of the webpage.
 5. If applicable, include tags related to the subject matter, industry, or field of study.
 
 Provide your answer as a comma-separated list of tags, without any additional text or explanation. The list should contain a minimum of 3 tags and a maximum of 5 tags.
@@ -17,5 +21,5 @@ Provide your answer as a comma-separated list of tags, without any additional te
 Example output format:
 tag1, tag2, tag3, tag4, tag5
 
-Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
+Remember to adjust the number of tags based on the content of the summary and metadata, ensuring you provide at least 3 and no more than 5 tags. 
 IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!

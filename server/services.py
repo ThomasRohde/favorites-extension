@@ -28,6 +28,7 @@ builtins.print = rprint
 
 logger = logging.getLogger(__name__)
 
+
 class FavoriteService:
     async def create_favorite_task(self, task_id: str, favorite_data: dict):
         db = SessionLocal()
@@ -37,17 +38,17 @@ class FavoriteService:
             task_queue._update_task(task_id, "processing", 10, None)
             # Generate summary if not provided
             if not favorite.summary:
-                favorite.summary = await nlp_service.summarize_content(str(favorite.url))
+                favorite.summary = await nlp_service.summarize_content(str(favorite.url), favorite.metadata)
             
             task_queue._update_task(task_id, "processing", 40, None)
             # Suggest tags if not provided
             if not favorite.tags:
-                favorite.tags = await nlp_service.suggest_tags(favorite.summary)
+                favorite.tags = await nlp_service.suggest_tags(favorite.summary, favorite.metadata)
             
             task_queue._update_task(task_id, "processing", 70, None)
             # Suggest folder if not provided
             if not favorite.folder_id:
-                favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary)
+                favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary, favorite.metadata)
             
             db_favorite = models.Favorite(
                 url=str(favorite.url),
@@ -77,20 +78,26 @@ class FavoriteService:
 
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
-            self.create_favorite_task,
-            task_name,
-            favorite.dict()
+            self.create_favorite_task, task_name, favorite.dict()
         )
         return {"task_id": task_id}
 
     def get_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
-        return db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        return (
+            db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        )
 
-    def get_favorites(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Favorite]:
+    def get_favorites(
+        self, db: Session, skip: int = 0, limit: int = 100
+    ) -> List[models.Favorite]:
         return db.query(models.Favorite).offset(skip).limit(limit).all()
 
-    def update_favorite(self, db: Session, favorite_id: int, favorite: schemas.FavoriteUpdate) -> Optional[models.Favorite]:
-        db_favorite = db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+    def update_favorite(
+        self, db: Session, favorite_id: int, favorite: schemas.FavoriteUpdate
+    ) -> Optional[models.Favorite]:
+        db_favorite = (
+            db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        )
         if db_favorite:
             update_data = favorite.dict(exclude_unset=True)
             for key, value in update_data.items():
@@ -99,12 +106,17 @@ class FavoriteService:
             db.refresh(db_favorite)
         return db_favorite
 
-    def delete_favorite(self, db: Session, favorite_id: int) -> Optional[models.Favorite]:
-        db_favorite = db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+    def delete_favorite(
+        self, db: Session, favorite_id: int
+    ) -> Optional[models.Favorite]:
+        db_favorite = (
+            db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
+        )
         if db_favorite:
             db.delete(db_favorite)
             db.commit()
         return db_favorite
+
 
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
@@ -117,11 +129,24 @@ class FolderService:
     def get_folder(self, db: Session, folder_id: int) -> Optional[models.Folder]:
         return db.query(models.Folder).filter(models.Folder.id == folder_id).first()
 
-    def get_folders(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Folder]:
-        return db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).offset(skip).limit(limit).all()
+    def get_folders(
+        self, db: Session, skip: int = 0, limit: int = 100
+    ) -> List[models.Folder]:
+        return (
+            db.query(models.Folder)
+            .filter(models.Folder.parent_id == None)
+            .options(joinedload(models.Folder.children))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
-    def update_folder(self, db: Session, folder_id: int, folder: schemas.FolderCreate) -> Optional[models.Folder]:
-        db_folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+    def update_folder(
+        self, db: Session, folder_id: int, folder: schemas.FolderCreate
+    ) -> Optional[models.Folder]:
+        db_folder = (
+            db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        )
         if db_folder:
             for key, value in folder.dict().items():
                 setattr(db_folder, key, value)
@@ -129,8 +154,12 @@ class FolderService:
             db.refresh(db_folder)
         return db_folder
 
-    def delete_folder(self, db: Session, folder_id: int, move_to_parent: bool = False) -> Optional[models.Folder]:
-        db_folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+    def delete_folder(
+        self, db: Session, folder_id: int, move_to_parent: bool = False
+    ) -> Optional[models.Folder]:
+        db_folder = (
+            db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        )
         if db_folder:
             if move_to_parent and db_folder.parent_id:
                 for child_folder in db_folder.children:
@@ -152,18 +181,36 @@ class FolderService:
                 "id": folder.id,
                 "name": folder.name,
                 "parent_id": folder.parent_id,
-                "description": folder.description, 
-                "children": [build_structure(child) for child in folder.children if isinstance(child, models.Folder)]
+                "description": folder.description,
+                "children": [
+                    build_structure(child)
+                    for child in folder.children
+                    if isinstance(child, models.Folder)
+                ],
             }
 
-        root_folders = db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).all()
+        root_folders = (
+            db.query(models.Folder)
+            .filter(models.Folder.parent_id == None)
+            .options(joinedload(models.Folder.children))
+            .all()
+        )
         return [build_structure(folder) for folder in root_folders]
 
-    def get_folder_favorites(self, db: Session, folder_id: int, skip: int = 0, limit: int = 100):
+    def get_folder_favorites(
+        self, db: Session, folder_id: int, skip: int = 0, limit: int = 100
+    ):
         folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
         if folder:
-            return db.query(models.Favorite).filter(models.Favorite.folder_id == folder_id).offset(skip).limit(limit).all()
+            return (
+                db.query(models.Favorite)
+                .filter(models.Favorite.folder_id == folder_id)
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
         return None
+
 
 class TagService:
     def create_tag(self, db: Session, tag: schemas.TagCreate) -> models.Tag:
@@ -176,10 +223,14 @@ class TagService:
     def get_tag(self, db: Session, tag_id: int) -> Optional[models.Tag]:
         return db.query(models.Tag).filter(models.Tag.id == tag_id).first()
 
-    def get_tags(self, db: Session, skip: int = 0, limit: int = 100) -> List[models.Tag]:
+    def get_tags(
+        self, db: Session, skip: int = 0, limit: int = 100
+    ) -> List[models.Tag]:
         return db.query(models.Tag).offset(skip).limit(limit).all()
 
-    def update_tag(self, db: Session, tag_id: int, tag: schemas.TagCreate) -> Optional[models.Tag]:
+    def update_tag(
+        self, db: Session, tag_id: int, tag: schemas.TagCreate
+    ) -> Optional[models.Tag]:
         db_tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
         if db_tag:
             for key, value in tag.dict().items():
@@ -198,27 +249,39 @@ class TagService:
     def search_tags(self, db: Session, query: str) -> List[models.Tag]:
         return db.query(models.Tag).filter(models.Tag.name.ilike(f"%{query}%")).all()
 
-    def get_tag_favorites(self, db: Session, tag_id: int, skip: int = 0, limit: int = 100) -> Optional[List[models.Favorite]]:
+    def get_tag_favorites(
+        self, db: Session, tag_id: int, skip: int = 0, limit: int = 100
+    ) -> Optional[List[models.Favorite]]:
         tag = self.get_tag(db, tag_id)
         if tag:
-            return tag.favorites[skip:skip+limit]
+            return tag.favorites[skip : skip + limit]
         return None
 
     async def suggest_tags(self, content: str) -> List[str]:
         return await nlp_service.suggest_tags(content)
 
     def get_popular_tags(self, db: Session, limit: int = 10) -> List[models.Tag]:
-        return db.query(models.Tag).join(models.favorite_tags).group_by(models.Tag.id).order_by(func.count(models.favorite_tags.c.favorite_id).desc()).limit(limit).all()
+        return (
+            db.query(models.Tag)
+            .join(models.favorite_tags)
+            .group_by(models.Tag.id)
+            .order_by(func.count(models.favorite_tags.c.favorite_id).desc())
+            .limit(limit)
+            .all()
+        )
+
 
 class NLPService:
     def __init__(self):
         self.session = requests.Session()
-        retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
-        self.session.mount('http://', HTTPAdapter(max_retries=retries))
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        retries = Retry(
+            total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504]
+        )
+        self.session.mount("http://", HTTPAdapter(max_retries=retries))
+        self.session.mount("https://", HTTPAdapter(max_retries=retries))
 
         # Set up Jinja2 environment
-        template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
         # Initialize ContentExtractor
@@ -226,24 +289,24 @@ class NLPService:
 
     def get_random_user_agent(self):
         user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59'
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59",
         ]
         return random.choice(user_agents)
 
     async def fetch_with_retries(self, url, max_retries=3):
         for attempt in range(max_retries):
             headers = {
-                'User-Agent': self.get_random_user_agent(),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://www.google.com/',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
+                "User-Agent": self.get_random_user_agent(),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Referer": "https://www.google.com/",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
             }
 
             try:
@@ -255,49 +318,55 @@ class NLPService:
                 return response
             except requests.HTTPError as e:
                 if e.response.status_code == 403:
-                    logger.warning(f"403 Forbidden encountered on attempt {attempt + 1}. Retrying...")
+                    logger.warning(
+                        f"403 Forbidden encountered on attempt {attempt + 1}. Retrying..."
+                    )
                     if attempt == max_retries - 1:
-                        logger.error(f"Max retries reached for URL {url}. Unable to fetch content.")
+                        logger.error(
+                            f"Max retries reached for URL {url}. Unable to fetch content."
+                        )
                         raise
                 else:
                     raise
             except requests.RequestException as e:
-                logger.error(f"Error fetching URL {url} on attempt {attempt + 1}: {str(e)}")
+                logger.error(
+                    f"Error fetching URL {url} on attempt {attempt + 1}: {str(e)}"
+                )
                 if attempt == max_retries - 1:
                     raise
 
-    def generate_fallback_description(self, url: str) -> str:
+    def generate_fallback_description(self, url: str, metadata: str) -> str:
         parsed_url = urlparse(url)
         domain = parsed_url.netloc
         path = parsed_url.path
 
-        template = self.jinja_env.get_template('generate_fallback_description.j2')
-        prompt = template.render(url=url)
+        template = self.jinja_env.get_template("generate_fallback_description.j2")
+        prompt = template.render(url=url, metadata=metadata)
 
         return llm_service.generate(prompt)
 
-    async def summarize_content(self, url: str) -> str:
+    async def summarize_content(self, url: str, metadata: str) -> str:
         try:
-            meta_text, content = await self.content_extractor.extract_content(url)
+            content = await self.content_extractor.extract_content(url)
 
-            template = self.jinja_env.get_template('summarize_content.j2')
-            prompt = template.render(meta_text=meta_text, content=content)
+            template = self.jinja_env.get_template("summarize_content.j2")
+            prompt = template.render(metadata=metadata, content=content)
 
             return llm_service.generate(prompt)
 
         except requests.RequestException as e:
             logger.error(f"Error fetching URL {url}: {str(e)}")
-            return self.generate_fallback_description(url)
+            return self.generate_fallback_description(url, metadata)
 
-    async def suggest_tags(self, summary: str) -> List[str]:
-        template = self.jinja_env.get_template('suggest_tags.j2')
-        prompt = template.render(summary=summary)
+    async def suggest_tags(self, summary: str, metadata: str) -> List[str]:
+        template = self.jinja_env.get_template("suggest_tags.j2")
+        prompt = template.render(summary=summary, metadata=metadata)
 
         response = llm_service.generate(prompt)
         # Clean up the response: remove everything after the first newline and split by comma
-        cleaned_response = response.split('\n')[0]
-        tags = cleaned_response.split(',')
-        
+        cleaned_response = response.split("\n")[0]
+        tags = cleaned_response.split(",")
+
         # Strip whitespace and filter out any empty tags
         return [tag.strip() for tag in tags if tag.strip()]
 
@@ -307,7 +376,9 @@ class NLPService:
                 "name": folder.name,
                 "id": folder.id,
                 "level": level,
-                "children": [build_structure(child, level + 1) for child in folder.children]
+                "children": [
+                    build_structure(child, level + 1) for child in folder.children
+                ],
             }
 
         root = db.query(models.Folder).filter(models.Folder.parent_id == None).first()
@@ -315,16 +386,18 @@ class NLPService:
 
     def format_folder_structure(self, structure, level=0):
         result = "  " * level + f"- {structure['name']} (ID: {structure['id']})\n"
-        for child in structure['children']:
+        for child in structure["children"]:
             result += self.format_folder_structure(child, level + 1)
         return result
 
-    async def suggest_folder(self, db: Session, summary: str) -> int:
+    async def suggest_folder(self, db: Session, summary: str, metadata: str) -> int:
         folder_structure = self.get_folder_structure(db)
         formatted_structure = self.format_folder_structure(folder_structure)
 
-        template = self.jinja_env.get_template('suggest_folder.j2')
-        prompt = template.render(summary=summary, formatted_structure=formatted_structure)
+        template = self.jinja_env.get_template("suggest_folder.j2")
+        prompt = template.render(
+            summary=summary, metadata=metadata, formatted_structure=formatted_structure
+        )
 
         try:
             suggestion = llm_service.generate(prompt)
@@ -338,25 +411,31 @@ class NLPService:
             return self.get_or_create_uncategorized_folder(db)
 
         try:
-            parent_folder_id = suggestion_json.get('id')
-            suggested_folder = suggestion_json['children'][0]
+            parent_folder_id = suggestion_json.get("id")
+            suggested_folder = suggestion_json["children"][0]
 
             # Check if parent folder exists
             parent_folder = folder_service.get_folder(db, parent_folder_id)
             if not parent_folder:
-                logger.warning(f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder.")
-                parent_folder_id = folder_structure['id']  # Use root folder id
+                logger.warning(
+                    f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder."
+                )
+                parent_folder_id = folder_structure["id"]  # Use root folder id
 
-            if 'id' in suggested_folder:
+            if "id" in suggested_folder:
                 # Check if the suggested folder exists
-                existing_folder = folder_service.get_folder(db, suggested_folder['id'])
+                existing_folder = folder_service.get_folder(db, suggested_folder["id"])
                 if existing_folder:
                     return existing_folder.id
                 else:
-                    logger.warning(f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder.")
+                    logger.warning(
+                        f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder."
+                    )
 
             # Create a new folder
-            return self.create_new_folder(db, parent_folder_id, suggested_folder['name'])
+            return self.create_new_folder(
+                db, parent_folder_id, suggested_folder["name"]
+            )
 
         except KeyError as e:
             logger.error(f"Invalid JSON structure in LLM response: {str(e)}")
@@ -380,7 +459,11 @@ class NLPService:
 
     def get_or_create_uncategorized_folder(self, db: Session) -> int:
         try:
-            uncategorized = db.query(models.Folder).filter(models.Folder.name == "Uncategorized").first()
+            uncategorized = (
+                db.query(models.Folder)
+                .filter(models.Folder.name == "Uncategorized")
+                .first()
+            )
             if not uncategorized:
                 uncategorized = models.Folder(name="Uncategorized", parent_id=None)
                 db.add(uncategorized)
@@ -394,9 +477,9 @@ class NLPService:
             # If all else fails, return None or a default folder ID
             return None  # or return a default folder ID if you have one
 
+
 # Initialize services
 favorite_service = FavoriteService()
 folder_service = FolderService()
 tag_service = TagService()
 nlp_service = NLPService()
-

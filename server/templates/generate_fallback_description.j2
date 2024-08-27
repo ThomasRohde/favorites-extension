@@ -1,10 +1,13 @@
-Generate a brief, general description for a webpage based only on its URL. The URL is:
+Generate a brief, general description for a webpage based on its URL and metadata. The information is:
 
-{{ url }}
+URL: {{ url }}
+
+Metadata:
+{{ metadata }}
 
 Your description should:
-1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
-2. Suggest possible content or purpose of the specific page based on the URL path.
-3. Use neutral language and avoid making definitive claims about the content.
+1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name and metadata.
+2. Suggest possible content or purpose of the specific page based on the URL path and available metadata.
+3. Use neutral language and avoid making definitive claims about the content unless clearly stated in the metadata.
 
 Limit your response to 2-3 sentences.

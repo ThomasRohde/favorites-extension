@@ -1,10 +1,14 @@
-You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
+You are tasked with suggesting the most appropriate folder for a webpage based on its summary, metadata, and the existing folder structure. Follow these steps carefully:
 
-1. First, you will be presented with a summary of a webpage:
+1. First, you will be presented with a summary of a webpage and its metadata:
 
 <summary>
 {{ summary }}
 </summary>
+
+<metadata>
+{{ metadata }}
+</metadata>
 
 2. Next, you will be given the existing folder structure:
 
@@ -12,9 +16,9 @@ You are tasked with suggesting the most appropriate folder for a webpage based o
 {{ formatted_structure }}
 </folder_structure>
 
-3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
-- Does the content of the summary clearly match any of the existing folder themes?
-- Are there key words or concepts in the summary that align with folder names?
+3. Analyze the webpage summary and metadata, and compare them to the themes or topics represented by the existing folders. Consider the following:
+- Does the content of the summary or metadata clearly match any of the existing folder themes?
+- Are there key words or concepts in the summary or metadata that align with folder names?
 - If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
 
 4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
