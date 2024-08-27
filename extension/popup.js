@@ -38,13 +38,4 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   });
-
-  adminButton.addEventListener('click', function() {
-    chrome.tabs.create({url: 'http://localhost:8000/admin'});
-  });
-
-  mainPageLink.addEventListener('click', function(e) {
-    e.preventDefault();
-    chrome.tabs.create({url: 'http://localhost:8000/'});
-  });
 });

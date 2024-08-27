@@ -318,6 +318,7 @@ Please create a summary of 2-3 sentences that describes the webpage and its main
 2. Explain the main subject or theme of the content
 3. Highlight any key features or important information presented on the page
 4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
+5. Be assertive about the contents of the web page, do not use language like 'appears to be', or 'is likely'.
 
 Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
 

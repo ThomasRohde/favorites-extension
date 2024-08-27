@@ -1,14 +1,12 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from database import engine, init_db
 import models
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
-from web_router import router as web_router
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -47,14 +45,10 @@ def create_application() -> FastAPI:
     # Initialize database
     init_db()
 
-    # Mount static files
-    application.mount("/static", StaticFiles(directory="static"), name="static")
-
     # Include routers
     application.include_router(favorites_router, prefix="/api/favorites", tags=["favorites"])
     application.include_router(folders_router, prefix="/api/folders", tags=["folders"])
     application.include_router(tags_router, prefix="/api/tags", tags=["tags"])
-    application.include_router(web_router, tags=["web"])
 
     return application
 
