@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (31%), Markdown (6%), JavaScript (4%), JSON (4%), HTML (4%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (33%), Markdown (7%), JSON (4%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -33,12 +33,11 @@ The following is a concise directory tree of the project, limited to 3 levels de
 │   │   └── summarize_content.j2
 │   ├── requirements.txt
 │   └── content_extractor.py
-├── extension
-│   ├── background.js
-│   ├── manifest.json
-│   ├── popup.html
-│   └── popup.js
-└── README.md
+├── README.md
+└── extension
+    ├── manifest.json
+    ├── popup.html
+    └── popup.js
 
 
 ## Selected Files
@@ -118,70 +117,6 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
----
-
-File: extension\background.js
-
-// Function to set the appropriate icon based on the current theme
-function setIconForTheme(isDarkTheme) {
-  const iconPath = isDarkTheme ? {
-    24: "icons8-favorite-dark-24.png",
-    48: "icons8-favorite-dark-48.png",
-    96: "icons8-favorite-dark-96.png"
-  } : {
-    24: "icons8-favorite-light-24.png",
-    48: "icons8-favorite-light-48.png",
-    96: "icons8-favorite-light-96.png"
-  };
-
-  chrome.action.setIcon({ path: iconPath });
-}
-
-// Function to check if the current theme is dark
-function isDarkTheme(theme) {
-  return theme && theme.colors && theme.colors.toolbar &&
-    theme.colors.toolbar.startsWith('rgb(') &&
-    parseInt(theme.colors.toolbar.split(',')[0].split('(')[1]) < 128;
-}
-
-// Listen for theme updates
-chrome.theme.onUpdated.addListener((updateInfo) => {
-  if (updateInfo.theme) {
-    setIconForTheme(isDarkTheme(updateInfo.theme));
-  }
-});
-
-// Set the initial icon when the extension is installed or updated
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.theme.getCurrent((theme) => {
-    setIconForTheme(isDarkTheme(theme));
-  });
-  console.log('Intelligent Favorites extension installed or updated.');
-});
-
-// Check and set the icon when a new browser window is created
-chrome.windows.onCreated.addListener(() => {
-  chrome.theme.getCurrent((theme) => {
-    setIconForTheme(isDarkTheme(theme));
-  });
-});
-
-// Listen for messages from the popup or content scripts
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "getCurrentTabInfo") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        sendResponse({ url: tabs[0].url, title: tabs[0].title });
-      } else {
-        sendResponse({ error: "No active tab found" });
-      }
-    });
-    return true; // Indicates that the response is sent asynchronously
-  }
-});
-
-console.log('Intelligent Favorites extension background script running.');
 
 ---
 
@@ -309,10 +244,7 @@ File: extension\manifest.json
   "description": "Add favorites to your Intelligent Favorites system",
   "permissions": [
     "activeTab",
-    "storage"
-  ],
-  "host_permissions": [
-    "http://localhost:8000/"
+    "scripting"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -326,9 +258,6 @@ File: extension\manifest.json
     "24": "icons8-favorite-dark-24.png",
     "48": "icons8-favorite-dark-48.png",
     "96": "icons8-favorite-dark-96.png"
-  },
-  "background": {
-    "service_worker": "background.js"
   }
 }
 
@@ -400,47 +329,113 @@ File: extension\popup.html
 
 File: extension\popup.js
 
-document.addEventListener('DOMContentLoaded', function() {
-  const titleInput = document.getElementById('titleInput');
-  const addButton = document.getElementById('addButton');
-  const adminButton = document.getElementById('adminButton');
-  const mainPageLink = document.getElementById('mainPageLink');
-  const messageDiv = document.getElementById('message');
+function formatMetaInfoForLLM(metaInfo) {
+    const relevantFields = [
+        "title",
+        "description",
+        "keywords",
+        "og:title",
+        "og:description",
+        "og:type",
+        "og:url",
+        "author",
+        "publish_date",
+        "article:published_time",
+        "article:author",
+    ];
 
-  // Get the current tab's title and URL
-  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-    const currentTab = tabs[0];
-    titleInput.value = currentTab.title;
-  });
+    let formattedString = "Webpage Metadata:\n";
 
-  addButton.addEventListener('click', function() {
-    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-      const currentTab = tabs[0];
-      const favoriteData = {
-        url: currentTab.url,
-        title: titleInput.value
-      };
+    for (const field of relevantFields) {
+        if (metaInfo[field]) {
+            formattedString += `${field}: ${metaInfo[field]}\n`;
+        }
+    }
 
-      fetch('http://localhost:8000/api/favorites/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    return formattedString.trim();
+}
+
+document.getElementById("addButton").addEventListener("click", async () => {
+    // This function will be executed in the context of the current tab
+    function getMetaDescription() {
+        const metaInfo = {};
+
+        // Extract title
+        metaInfo.title = document.title;
+
+        // Extract meta tags
+        const metaTags = document.getElementsByTagName("meta");
+        for (let i = 0; i < metaTags.length; i++) {
+            const name = metaTags[i].getAttribute("name");
+            const property = metaTags[i].getAttribute("property");
+            const content = metaTags[i].getAttribute("content");
+
+            if (name) {
+                metaInfo[name.toLowerCase()] = content;
+            } else if (property) {
+                metaInfo[property.toLowerCase()] = content;
+            }
+        }
+
+        // Extract Open Graph tags
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        const ogDescription = document.querySelector('meta[property="og:description"]');
+        const ogImage = document.querySelector('meta[property="og:image"]');
+
+        if (ogTitle) metaInfo["og:title"] = ogTitle.getAttribute("content");
+        if (ogDescription) metaInfo["og:description"] = ogDescription.getAttribute("content");
+        if (ogImage) metaInfo["og:image"] = ogImage.getAttribute("content");
+
+        return metaInfo;
+    }
+
+    // Get the current active tab
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    // Execute script in the context of the active tab
+    chrome.scripting.executeScript(
+        {
+            target: { tabId: tab.id },
+            function: getMetaDescription,
         },
-        body: JSON.stringify(favoriteData)
-      })
-      .then(response => response.json())
-      .then(data => {
-        messageDiv.textContent = 'Favorite added successfully!';
-        messageDiv.style.color = 'green';
-      })
-      .catch(error => {
-        messageDiv.textContent = 'Error adding favorite.';
-        messageDiv.style.color = 'red';
-        console.error('Error:', error);
-      });
-    });
-  });
+        (results) => {
+            // Log the result to the extension's console
+            console.log(results[0].result);
+
+            // Format the metaInfo for LLM prompt
+            const formattedMetaInfo = formatMetaInfoForLLM(results[0].result);
+            console.log("Formatted Meta Info for LLM:");
+            console.log(formattedMetaInfo);
+
+            const favoriteData = {
+                url: tab.url,
+                title: tab.title,
+                metadata: formattedMetaInfo,
+            };
+
+            const messageDiv = document.getElementById("message");
+
+            fetch("http://localhost:8000/api/favorites/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(favoriteData),
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    messageDiv.textContent = "Favorite added successfully!";
+                    messageDiv.style.color = "green";
+                })
+                .catch((error) => {
+                    messageDiv.textContent = "Error adding favorite.";
+                    messageDiv.style.color = "red";
+                    console.error("Error:", error);
+                });
+        }
+    );
 });
+
 
 ---
 
