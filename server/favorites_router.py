@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
 from pydantic import ValidationError
-
+from rich import print as rprint
 from database import get_db
 import schemas
 from services import favorite_service, folder_service, nlp_service
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate):
+    print(favorite)
     try:
         task_name = f"Create Favorite: {favorite.title}"
         result = favorite_service.create_favorite(favorite, task_name)
