@@ -1,3 +1,10 @@
+document.addEventListener('DOMContentLoaded', function() {
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        let currentTab = tabs[0];
+        document.getElementById('titleInput').value = currentTab.title;
+    });
+});
+
 function formatMetaInfoForLLM(metaInfo) {
     const relevantFields = [
         "title",
@@ -78,7 +85,7 @@ document.getElementById("addButton").addEventListener("click", async () => {
 
             const favoriteData = {
                 url: tab.url,
-                title: tab.title,
+                title: document.getElementById('titleInput').value,
                 metadata: formattedMetaInfo,
             };
 

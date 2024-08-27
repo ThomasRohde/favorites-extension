@@ -1,3 +1,4 @@
 .aider*
 server/favorites.db
 *.db
+llm_prompt.txt
