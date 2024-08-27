@@ -1,0 +1,56 @@
+You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
+
+1. First, you will be presented with a summary of a webpage:
+
+<summary>
+{{ summary }}
+</summary>
+
+2. Next, you will be given the existing folder structure:
+
+<folder_structure>
+{{ formatted_structure }}
+</folder_structure>
+
+3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
+- Does the content of the summary clearly match any of the existing folder themes?
+- Are there key words or concepts in the summary that align with folder names?
+- If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
+
+4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
+{
+    "name": "Parent Folder Name",
+    "id": parent_folder_id,
+    "children": [
+    {
+        "name": "Suggested Folder Name",
+        "id": suggested_folder_id  // Optional, include only if suggesting an existing folder
+    }
+    ]
+}
+
+Examples:
+1. Suggesting an existing folder:
+{
+    "name": "Development",
+    "id": 2,
+    "children": [
+    {
+        "name": "Python",
+        "id": 5
+    }
+    ]
+}
+
+2. Suggesting a new folder:
+{
+    "name": "Technology",
+    "id": 3,
+    "children": [
+    {
+        "name": "Artificial Intelligence"
+    }
+    ]
+}
+
+5. IMPORTANT: Your response must contain ONLY the JSON structure. Do not include any explanations, justifications, or additional text.

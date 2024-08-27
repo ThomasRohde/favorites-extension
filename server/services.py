@@ -13,13 +13,15 @@ from task_queue import task_queue
 from database import SessionLocal, engine
 import asyncio
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry  # Updated import statement
+from urllib3.util.retry import Retry
 import random
 from urllib.parse import urlparse
 from llm import llm_service
 from rich import print as rprint
 import builtins
 import json
+from jinja2 import Environment, FileSystemLoader
+import os
 
 builtins.print = rprint
 
@@ -103,7 +105,6 @@ class FavoriteService:
             db.commit()
         return db_favorite
 
-# Folder Service
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
         db_folder = models.Folder(**folder.dict())
@@ -157,14 +158,12 @@ class FolderService:
         root_folders = db.query(models.Folder).filter(models.Folder.parent_id == None).options(joinedload(models.Folder.children)).all()
         return [build_structure(folder) for folder in root_folders]
 
-    
     def get_folder_favorites(self, db: Session, folder_id: int, skip: int = 0, limit: int = 100):
         folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
         if folder:
             return db.query(models.Favorite).filter(models.Favorite.folder_id == folder_id).offset(skip).limit(limit).all()
         return None
 
-# Tag Service
 class TagService:
     def create_tag(self, db: Session, tag: schemas.TagCreate) -> models.Tag:
         db_tag = models.Tag(**tag.dict())
@@ -205,18 +204,21 @@ class TagService:
         return None
 
     async def suggest_tags(self, content: str) -> List[str]:
-        return await self.nlp_service.suggest_tags(content)
+        return await nlp_service.suggest_tags(content)
 
     def get_popular_tags(self, db: Session, limit: int = 10) -> List[models.Tag]:
         return db.query(models.Tag).join(models.favorite_tags).group_by(models.Tag.id).order_by(func.count(models.favorite_tags.c.favorite_id).desc()).limit(limit).all()
 
-# NLP Service
 class NLPService:
     def __init__(self):
         self.session = requests.Session()
         retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
         self.session.mount('http://', HTTPAdapter(max_retries=retries))
         self.session.mount('https://', HTTPAdapter(max_retries=retries))
+
+        # Set up Jinja2 environment
+        template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
     def get_random_user_agent(self):
         user_agents = [
@@ -265,16 +267,8 @@ class NLPService:
         domain = parsed_url.netloc
         path = parsed_url.path
 
-        prompt = f"""Generate a brief, general description for a webpage based only on its URL. The URL is:
-
-{url}
-
-Your description should:
-1. Identify the likely type of website (e.g., company website, blog, news site, etc.) based on the domain name.
-2. Suggest possible content or purpose of the specific page based on the URL path.
-3. Use neutral language and avoid making definitive claims about the content.
-
-Limit your response to 2-3 sentences."""
+        template = self.jinja_env.get_template('generate_fallback_description.j2')
+        prompt = template.render(url=url)
 
         return llm_service.generate(prompt)
 
@@ -305,22 +299,8 @@ Limit your response to 2-3 sentences."""
             else:
                 content = ""
 
-            prompt = f"""You will be given information about a webpage. Your task is to create a brief summary describing the webpage and what it is about. Here is the information:
-
-<webpage_info>
-{meta_text}
-{content}
-</webpage_info>
-
-Please create a summary of 2-3 sentences that describes the webpage and its main topic or purpose. Your summary should:
-
-1. Identify the type of webpage (e.g., article, product page, blog post, etc.)
-2. Explain the main subject or theme of the content
-3. Highlight any key features or important information presented on the page
-4. If the webpage is news or current events related, summarize the general kinds of topics covered, not any specific story
-5. Be assertive about the contents of the web page, do not use language like 'appears to be', or 'is likely'.
-
-Focus on providing a concise yet informative overview that would give someone a clear idea of what they would find if they visited this webpage. Use the meta information when available, and fall back to the content when necessary. DO NOT write anything but the summary."""
+            template = self.jinja_env.get_template('summarize_content.j2')
+            prompt = template.render(meta_text=meta_text, content=content)
 
             return llm_service.generate(prompt)
 
@@ -328,29 +308,9 @@ Focus on providing a concise yet informative overview that would give someone a 
             logger.error(f"Error fetching URL {url}: {str(e)}")
             return self.generate_fallback_description(url)
 
-    
     async def suggest_tags(self, summary: str) -> List[str]:
-        prompt = f"""You are tasked with suggesting 3-5 relevant tags for the following summary:
-
-<summary>
-{summary}
-</summary>
-
-Your goal is to generate tags that accurately represent the main topics, themes, or key elements discussed in the summary. Follow these guidelines when selecting tags:
-
-1. Choose tags that are concise, typically consisting of one or two words.
-2. Focus on the most prominent and important concepts in the summary.
-3. Avoid overly generic tags that could apply to almost any text.
-4. Ensure the tags are diverse and cover different aspects of the summary.
-5. If applicable, include tags related to the subject matter, industry, or field of study.
-
-Provide your answer as a comma-separated list of tags, without any additional text or explanation. The list should contain a minimum of 3 tags and a maximum of 5 tags.
-
-Example output format:
-tag1, tag2, tag3, tag4, tag5
-
-Remember to adjust the number of tags based on the content of the summary, ensuring you provide at least 3 and no more than 5 tags. 
-IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate or explain!"""
+        template = self.jinja_env.get_template('suggest_tags.j2')
+        prompt = template.render(summary=summary)
 
         response = llm_service.generate(prompt)
         # Clean up the response: remove everything after the first newline and split by comma
@@ -382,62 +342,8 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
         folder_structure = self.get_folder_structure(db)
         formatted_structure = self.format_folder_structure(folder_structure)
 
-        prompt = f"""You are tasked with suggesting the most appropriate folder for a webpage based on its summary and the existing folder structure. Follow these steps carefully:
-
-    1. First, you will be presented with a summary of a webpage:
-
-    <summary>
-    {summary}
-    </summary>
-
-    2. Next, you will be given the existing folder structure:
-
-    <folder_structure>
-    {formatted_structure}
-    </folder_structure>
-
-    3. Analyze the webpage summary and compare it to the themes or topics represented by the existing folders. Consider the following:
-    - Does the content of the summary clearly match any of the existing folder themes?
-    - Are there key words or concepts in the summary that align with folder names?
-    - If no existing folder seems appropriate, suggest a new folder name that would best categorize this webpage.
-
-    4. Based on your analysis, provide your suggestion in a JSON structure with the following format:
-    {{
-        "name": "Parent Folder Name",
-        "id": parent_folder_id,
-        "children": [
-        {{
-            "name": "Suggested Folder Name",
-            "id": suggested_folder_id  // Optional, include only if suggesting an existing folder
-        }}
-        ]
-    }}
-
-    Examples:
-    1. Suggesting an existing folder:
-    {{
-        "name": "Development",
-        "id": 2,
-        "children": [
-        {{
-            "name": "Python",
-            "id": 5
-        }}
-        ]
-    }}
-
-    2. Suggesting a new folder:
-    {{
-        "name": "Technology",
-        "id": 3,
-        "children": [
-        {{
-            "name": "Artificial Intelligence"
-        }}
-        ]
-    }}
-
-    5. IMPORTANT: Your response must contain ONLY the JSON structure. Do not include any explanations, justifications, or additional text."""
+        template = self.jinja_env.get_template('suggest_folder.j2')
+        prompt = template.render(summary=summary, formatted_structure=formatted_structure)
 
         try:
             suggestion = llm_service.generate(prompt)
@@ -506,9 +412,10 @@ IMPORTANT! Do not provide anything else that the list of tags. Do not elaborate 
             db.rollback()
             # If all else fails, return None or a default folder ID
             return None  # or return a default folder ID if you have one
-        
+
 # Initialize services
 favorite_service = FavoriteService()
 folder_service = FolderService()
 tag_service = TagService()
 nlp_service = NLPService()
+

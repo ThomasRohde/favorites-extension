@@ -15,5 +15,6 @@ pytest
 httpx
 aiohttp
 openai
+jinja2
 pystray
 pillow
