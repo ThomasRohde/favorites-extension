@@ -23,6 +23,8 @@ import json
 from jinja2 import Environment, FileSystemLoader
 import os
 from content_extractor import ContentExtractor
+from typing import List
+import math
 
 builtins.print = rprint
 
@@ -117,6 +119,100 @@ class FavoriteService:
             db.commit()
         return db_favorite
 
+    async def delete_all_favorites_task(self, task_id: str):
+        db = SessionLocal()
+        try:
+            task_queue._update_task(task_id, "processing", 10, None)
+            
+            # Delete all favorites
+            db.query(models.Favorite).delete()
+            db.commit()
+            
+            task_queue._update_task(task_id, "processing", 90, None)
+            
+            return "All favorites deleted successfully"
+        except Exception as e:
+            logger.error(f"Error deleting all favorites: {str(e)}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def delete_all_favorites(self, task_name: str):
+        task_id = task_queue.add_task(
+            self.delete_all_favorites_task, task_name
+        )
+        return {"task_id": task_id}
+
+    async def process_favorite_batch(self, db: Session, batch: List[schemas.FavoriteImport]):
+        processed_favorites = []
+        for favorite in batch:
+            summary = await nlp_service.summarize_content(str(favorite.url), favorite.metadata)
+            suggested_tags = await nlp_service.suggest_tags(summary, favorite.metadata)
+            suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite.metadata)
+            
+            processed_favorites.append({
+                "url": str(favorite.url),
+                "title": favorite.title,
+                "summary": summary,
+                "folder_id": suggested_folder_id,
+                "tags": suggested_tags
+            })
+        return processed_favorites
+
+    async def import_favorites_task(self, task_id: str, favorites: List[schemas.FavoriteImport]):
+        db = SessionLocal()
+        try:
+            total_favorites = len(favorites)
+            batch_size = 5  # Process 10 favorites at a time
+            num_batches = math.ceil(total_favorites / batch_size)
+
+            for i in range(0, total_favorites, batch_size):
+                batch = favorites[i:i+batch_size]
+                progress = int((i / total_favorites) * 100)
+                task_queue._update_task(task_id, "processing", str(progress), None)
+
+                # Process batch
+                processed_batch = await self.process_favorite_batch(db, batch)
+
+                # Save processed favorites to database
+                for favorite in processed_batch:
+                    db_favorite = models.Favorite(
+                        url=favorite["url"],
+                        title=favorite["title"],
+                        summary=favorite["summary"],
+                        folder_id=favorite["folder_id"]
+                    )
+                    db.add(db_favorite)
+                    db.flush()
+
+                    # Add tags
+                    for tag_name in favorite["tags"]:
+                        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                        if not tag:
+                            tag = models.Tag(name=tag_name)
+                            db.add(tag)
+                            db.flush()
+                        db_favorite.tags.append(tag)
+
+                db.commit()
+
+                # Add a small delay between batches to avoid overwhelming the NLP services
+                await asyncio.sleep(1)
+
+            return f"Successfully imported {total_favorites} favorites"
+        except Exception as e:
+            logger.error(f"Error importing favorites: {str(e)}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def import_favorites(self, favorites: List[schemas.FavoriteImport], task_name: str):
+        task_id = task_queue.add_task(
+            self.import_favorites_task, task_name, favorites
+        )
+        return {"task_id": task_id}
 
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:

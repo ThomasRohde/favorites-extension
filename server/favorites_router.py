@@ -71,3 +71,23 @@ async def suggest_tags(favorite: schemas.FavoriteCreate, db: Session = Depends(g
 @router.post("/suggest-folder", response_model=int)
 async def suggest_folder(favorite: schemas.FavoriteCreate, db: Session = Depends(get_db)):
     return await nlp_service.suggest_folder(db, str(favorite.url))
+
+@router.delete("/", response_model=Dict[str, str])
+async def delete_all_favorites():
+    try:
+        task_name = "Delete All Favorites"
+        result = favorite_service.delete_all_favorites(task_name)
+        return {"task_id": result["task_id"]}
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/import", response_model=Dict[str, str])
+async def import_favorites(favorites: List[schemas.FavoriteImport]):
+    try:
+        task_name = f"Import Favorites: {len(favorites)} items"
+        result = favorite_service.import_favorites(favorites, task_name)
+        return {"task_id": result["task_id"]}
+    except Exception as e:
+        logger.error(f"Unexpected error during import: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

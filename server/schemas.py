@@ -79,4 +79,9 @@ class TaskStatusDetail(TaskStatus):
 class TaskCreate(BaseModel):
     name: str
 
-FolderWithChildren.update_forward_refs()
+class FavoriteImport(BaseModel):
+    url: HttpUrl
+    title: str
+    metadata: Optional[str] = None
+
+FolderWithChildren.model_rebuild()
