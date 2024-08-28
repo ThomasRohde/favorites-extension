@@ -377,7 +377,17 @@ class TagService:
             .limit(limit)
             .all()
         )
-
+    
+    def get_favorites_by_fuzzy_tag(self, db: Session, tag_query: str, skip: int = 0, limit: int = 100) -> List[models.Favorite]:
+        # Convert the query to lowercase and surround with wildcards
+        fuzzy_query = f"%{tag_query.lower()}%"
+        return (db.query(models.Favorite)
+                  .join(models.favorite_tags)
+                  .join(models.Tag)
+                  .filter(func.lower(models.Tag.name).like(fuzzy_query))
+                  .offset(skip)
+                  .limit(limit)
+                  .all())
 
 class NLPService:
     def __init__(self):

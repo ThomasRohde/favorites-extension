@@ -1,9 +1,9 @@
 # tags_router.py
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
-
+from urllib.parse import unquote
 from database import get_db
 import schemas
 from services import tag_service
@@ -57,3 +57,17 @@ async def suggest_tags(content: str, db: Session = Depends(get_db)):
 @router.get("/popular", response_model=List[schemas.Tag])
 def get_popular_tags(limit: int = 10, db: Session = Depends(get_db)):
     return tag_service.get_popular_tags(db, limit)
+
+@router.get("/fuzzy/{tag_query}/favorites", response_model=List[schemas.Favorite])
+def get_favorites_by_fuzzy_tag(
+    tag_query: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    # Decode the URL-encoded query and remove any remaining '%' characters
+    decoded_query = unquote(tag_query).replace('%', '')
+    favorites = tag_service.get_favorites_by_fuzzy_tag(db, decoded_query, skip, limit)
+    if not favorites:
+        raise HTTPException(status_code=404, detail="No favorites found for the given tag query")
+    return favorites
