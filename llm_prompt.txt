@@ -2353,13 +2353,25 @@ class FavoriteService:
             if not favorite.folder_id:
                 favorite.folder_id = await nlp_service.suggest_folder(db, favorite.summary, favorite.metadata)
             
-            db_favorite = models.Favorite(
-                url=str(favorite.url),
-                title=favorite.title,
-                summary=favorite.summary,
-                folder_id=favorite.folder_id
-            )
-            db.add(db_favorite)
+            # Prepare the favorite data
+            favorite_data = {
+                "url": str(favorite.url),
+                "title": favorite.title,
+                "summary": favorite.summary,
+                "folder_id": favorite.folder_id
+            }
+
+            # Try to get existing favorite or create a new one
+            db_favorite = db.query(models.Favorite).filter(models.Favorite.url == str(favorite.url)).first()
+            if db_favorite:
+                # Update existing favorite
+                for key, value in favorite_data.items():
+                    setattr(db_favorite, key, value)
+            else:
+                # Create new favorite
+                db_favorite = models.Favorite(**favorite_data)
+                db.add(db_favorite)
+
             db.flush()
 
             for tag_name in favorite.tags:
