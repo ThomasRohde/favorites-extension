@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (33%), Markdown (7%), JSON (4%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (33%), Markdown (8%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -69,22 +69,35 @@ logger = logging.getLogger(__name__)
 def create_application() -> FastAPI:
     application = FastAPI(
         title="Intelligent Favorites Extension API",
-        description="An API for managing intelligent favorites with automatic summarization and tagging.",
+        description="""
+        This API provides endpoints for managing an intelligent favorites system. 
+        It allows users to create, retrieve, update, and delete favorites, folders, and tags. 
+        The system also provides intelligent features such as automatic summarization, 
+        tag suggestion, and folder recommendation.
+
+        Key features:
+        * Manage favorites with automatic content summarization
+        * Organize favorites into folders
+        * Tag favorites for easy categorization and retrieval
+        * Intelligent tag and folder suggestions based on content analysis
+        * Search functionality for favorites and tags
+        * Asynchronous processing for time-consuming tasks
+        """,
         version="1.0.0",
         openapi_tags=[
             {
                 "name": "favorites",
-                "description": "Operations with favorites",
+                "description": "Operations with favorites, including creation, retrieval, update, and deletion.",
             },
             {
                 "name": "folders",
-                "description": "Manage folders for organizing favorites",
+                "description": "Manage folders for organizing favorites, including creation, retrieval, update, and deletion.",
             },
             {
                 "name": "tags",
-                "description": "Manage tags for categorizing favorites",
+                "description": "Manage tags for categorizing favorites, including creation, retrieval, update, and deletion.",
             },
-        ],
+        ]
     )
 
     # Set up CORS

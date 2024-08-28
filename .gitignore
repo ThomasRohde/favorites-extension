@@ -2,3 +2,4 @@
 server/favorites.db
 *.db
 llm_prompt.txt
+server/import_ready_links.json
