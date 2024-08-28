@@ -1,10 +1,11 @@
-from sqlalchemy import Column, String, JSON
+from sqlalchemy import Column, String, JSON, DateTime, inspect, text
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
 from threading import Thread
 import asyncio
 import uuid
 import json
+from datetime import datetime, timezone
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -14,18 +15,29 @@ class Task(Base):
     status = Column(String)
     progress = Column(String)
     result = Column(JSON)
+    created_at = Column(DateTime, nullable=True)
 
 class TaskQueue:
     def __init__(self):
         self.init_db()
 
     def init_db(self):
-        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        if not inspector.has_table("tasks"):
+            Base.metadata.create_all(bind=engine)
+        else:
+            # Check if created_at column exists
+            columns = [col['name'] for col in inspector.get_columns("tasks")]
+            if 'created_at' not in columns:
+                # Add created_at column
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE tasks ADD COLUMN created_at DATETIME"))
+                    conn.commit()
 
     def add_task(self, task_func, task_name, *args, **kwargs):
         task_id = str(uuid.uuid4())
         with SessionLocal() as db:
-            db_task = Task(id=task_id, name=task_name, status="pending", progress="0", result=None)
+            db_task = Task(id=task_id, name=task_name, status="pending", progress="0", result=None, created_at=datetime.now(timezone.utc))
             db.add(db_task)
             db.commit()
 
@@ -67,13 +79,14 @@ class TaskQueue:
 
     def get_all_tasks(self):
         with SessionLocal() as db:
-            tasks = db.query(Task).order_by(Task.id.desc()).limit(10).all()
+            tasks = db.query(Task).order_by(Task.created_at.desc()).all()
         return [
             {
                 "id": task.id,
                 "name": task.name,
                 "status": task.status,
-                "progress": task.progress
+                "progress": task.progress,
+                "created_at": task.created_at.isoformat() if task.created_at else None
             } for task in tasks
         ]
 
