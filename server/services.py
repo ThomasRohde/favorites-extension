@@ -176,7 +176,7 @@ class FavoriteService:
         db = SessionLocal()
         try:
             total_favorites = len(favorites)
-            batch_size = 5  # Process 10 favorites at a time
+            batch_size = 5  # Process 5 favorites at a time
             num_batches = math.ceil(total_favorites / batch_size)
 
             for i in range(0, total_favorites, batch_size):
@@ -475,29 +475,33 @@ class NLPService:
         except requests.RequestException as e:
             logger.error(f"Error fetching URL {url}: {str(e)}")
             return self.generate_fallback_description(url, metadata)
+        except Exception as e:
+            logger.error(f"Unexpected error while summarizing content for {url}: {str(e)}")
+            raise
 
     async def suggest_tags(self, summary: str, metadata: str) -> List[str]:
-        template = self.jinja_env.get_template("suggest_tags.j2")
-        prompt = template.render(summary=summary, metadata=metadata)
+        try:
+            template = self.jinja_env.get_template("suggest_tags.j2")
+            prompt = template.render(summary=summary, metadata=metadata)
 
-        response = llm_service.generate(prompt)
-        # Clean up the response: remove everything after the first newline and split by comma
-        cleaned_response = response.split("\n")[0]
-        tags = cleaned_response.split(",")
+            response = llm_service.generate(prompt)
+            cleaned_response = response.split("\n")[0]
+            tags = cleaned_response.split(",")
 
-        # Strip whitespace, replace "-" or "_" with space, capitalize first letter, and filter out any empty tags
-        formatted_tags = []
-        for tag in tags:
-            tag = tag.strip()
-            if tag:
-                # Replace "-" or "_" with space
-                tag = tag.replace("-", " ").replace("_", " ")
-                # Capitalize the first character if it's a letter
-                if tag[0].isalpha():
-                    tag = tag[0].upper() + tag[1:]
-                formatted_tags.append(tag)
+            formatted_tags = []
+            for tag in tags:
+                tag = tag.strip()
+                if tag:
+                    tag = tag.replace("-", " ").replace("_", " ")
+                    if tag[0].isalpha():
+                        tag = tag[0].upper() + tag[1:]
+                    formatted_tags.append(tag)
 
-        return formatted_tags
+            return formatted_tags
+
+        except Exception as e:
+            logger.error(f"Unexpected error while suggesting tags: {str(e)}")
+            raise
 
     def get_folder_structure(self, db: Session):
         def build_structure(folder, level=0):
@@ -520,58 +524,43 @@ class NLPService:
         return result
 
     async def suggest_folder(self, db: Session, summary: str, metadata: str) -> int:
-        folder_structure = self.get_folder_structure(db)
-        formatted_structure = self.format_folder_structure(folder_structure)
-
-        template = self.jinja_env.get_template("suggest_folder.j2")
-        prompt = template.render(
-            summary=summary, metadata=metadata, formatted_structure=formatted_structure
-        )
-
         try:
+            folder_structure = self.get_folder_structure(db)
+            formatted_structure = self.format_folder_structure(folder_structure)
+
+            template = self.jinja_env.get_template("suggest_folder.j2")
+            prompt = template.render(
+                summary=summary, metadata=metadata, formatted_structure=formatted_structure
+            )
+
             suggestion = llm_service.generate(prompt)
             suggestion_json = json.loads(suggestion)
-            print(suggestion_json)
+            logger.info(f"Folder suggestion: {suggestion_json}")
+
+            parent_folder_id = suggestion_json.get("id")
+            suggested_folder = suggestion_json["children"][0]
+
+            parent_folder = db.query(models.Folder).filter(models.Folder.id == parent_folder_id).first()
+            if not parent_folder:
+                logger.warning(f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder.")
+                parent_folder_id = folder_structure["id"]
+
+            if "id" in suggested_folder:
+                existing_folder = db.query(models.Folder).filter(models.Folder.id == suggested_folder["id"]).first()
+                if existing_folder:
+                    return existing_folder.id
+                else:
+                    logger.warning(f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder.")
+
+            return self.create_new_folder(db, parent_folder_id, suggested_folder["name"])
+
         except json.JSONDecodeError:
             logger.error(f"Failed to parse LLM response as JSON: {suggestion}")
             return self.get_or_create_uncategorized_folder(db)
         except Exception as e:
-            logger.error(f"Error generating folder suggestion: {str(e)}")
+            logger.error(f"Unexpected error while suggesting folder: {str(e)}")
             return self.get_or_create_uncategorized_folder(db)
 
-        try:
-            parent_folder_id = suggestion_json.get("id")
-            suggested_folder = suggestion_json["children"][0]
-
-            # Check if parent folder exists
-            parent_folder = folder_service.get_folder(db, parent_folder_id)
-            if not parent_folder:
-                logger.warning(
-                    f"Suggested parent folder ID {parent_folder_id} does not exist. Using root folder."
-                )
-                parent_folder_id = folder_structure["id"]  # Use root folder id
-
-            if "id" in suggested_folder:
-                # Check if the suggested folder exists
-                existing_folder = folder_service.get_folder(db, suggested_folder["id"])
-                if existing_folder:
-                    return existing_folder.id
-                else:
-                    logger.warning(
-                        f"Suggested folder ID {suggested_folder['id']} does not exist. Creating a new folder."
-                    )
-
-            # Create a new folder
-            return self.create_new_folder(
-                db, parent_folder_id, suggested_folder["name"]
-            )
-
-        except KeyError as e:
-            logger.error(f"Invalid JSON structure in LLM response: {str(e)}")
-            return self.get_or_create_uncategorized_folder(db)
-        except Exception as e:
-            logger.error(f"Error processing folder suggestion: {str(e)}")
-            return self.get_or_create_uncategorized_folder(db)
 
     def create_new_folder(self, db: Session, parent_id: int, folder_name: str) -> int:
         try:

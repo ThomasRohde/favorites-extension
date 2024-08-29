@@ -3,7 +3,10 @@ import ollama
 from openai import OpenAI
 import os
 from typing import Optional, Generator, Any
-from anthropic import Anthropic, AsyncAnthropic
+from anthropic import Anthropic, AsyncAnthropic, RateLimitError, APIStatusError, APIConnectionError
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LLMProvider(ABC):
     @abstractmethod
@@ -75,13 +78,32 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             raise RuntimeError(f"Error generating response with metadata from OpenAI: {str(e)}")
 
+import time
+from anthropic import Anthropic, RateLimitError, APIStatusError, APIConnectionError
+
+# llm.py
+
+import os
+import logging
+from typing import Optional, Generator, Any
+from anthropic import Anthropic, AsyncAnthropic, RateLimitError, APIStatusError, APIConnectionError
+import httpx
+
+logger = logging.getLogger(__name__)
+
 class AnthropicProvider(LLMProvider):
     def __init__(self, model: str = "claude-3-haiku-20240307"):
         self.model = model
+        self.initialize_client()
+
+    def initialize_client(self):
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Anthropic API key not found. Please set the ANTHROPIC_API_KEY environment variable.")
-        self.client = Anthropic()
+        self.client = Anthropic(
+            max_retries=3,
+            timeout=httpx.Timeout(30.0, connect=5.0)
+        )
 
     def generate(self, prompt: str) -> str:
         try:
@@ -96,8 +118,18 @@ class AnthropicProvider(LLMProvider):
                 ],
             )
             return message.content[0].text
+        except RateLimitError as e:
+            logger.warning(f"Rate limit reached: {str(e)}")
+            raise
+        except APIConnectionError as e:
+            logger.error(f"Connection error: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"API error: {e.status_code} - {str(e)}")
+            raise
         except Exception as e:
-            raise RuntimeError(f"Error generating response with Anthropic: {str(e)}")
+            logger.error(f"Unexpected error generating response: {str(e)}")
+            raise
 
     def generate_stream(self, prompt: str) -> Generator[str, None, None]:
         try:
@@ -115,9 +147,18 @@ class AnthropicProvider(LLMProvider):
             for event in stream:
                 if event.type == "content_block_delta":
                     yield event.delta.text
+        except RateLimitError as e:
+            logger.warning(f"Rate limit reached in stream: {str(e)}")
+            raise
+        except APIConnectionError as e:
+            logger.error(f"Connection error in stream: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"API error in stream: {e.status_code} - {str(e)}")
+            raise
         except Exception as e:
-            raise RuntimeError(f"Error generating streaming response with Anthropic: {str(e)}")
-
+            logger.error(f"Unexpected error generating streaming response: {str(e)}")
+            raise
 class LLMService:
     def __init__(self, provider: Optional[LLMProvider] = None):
         if provider is None:

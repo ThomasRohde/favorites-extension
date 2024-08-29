@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate):
-    print(favorite)
     try:
         task_name = f"Create Favorite: {favorite.title}"
         result = favorite_service.create_favorite(favorite, task_name)
