@@ -176,30 +176,35 @@ class FavoriteService:
         db = SessionLocal()
         try:
             total_favorites = len(favorites)
-            batch_size = 5  # Process 5 favorites at a time
-            num_batches = math.ceil(total_favorites / batch_size)
+            
+            # Store all favorites to process
+            for favorite in favorites:
+                db_favorite_to_process = models.FavoriteToProcess(
+                    url=str(favorite.url),
+                    title=favorite.title,
+                    metainfo=favorite.metadata
+                )
+                db.add(db_favorite_to_process)
+            db.commit()
 
-            for i in range(0, total_favorites, batch_size):
-                batch = favorites[i:i+batch_size]
-                progress = int((i / total_favorites) * 100)
-                task_queue._update_task(task_id, "processing", str(progress), None)
-
-                # Process batch
-                processed_batch = await self.process_favorite_batch(db, batch)
-
-                # Save processed favorites to database
-                for favorite in processed_batch:
+            # Process favorites
+            processed_count = 0
+            for favorite_to_process in db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).all():
+                try:
+                    summary = await nlp_service.summarize_content(str(favorite_to_process.url), favorite_to_process.metainfo)
+                    suggested_tags = await nlp_service.suggest_tags(summary, favorite_to_process.metainfo)
+                    suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite_to_process.metainfo)
+                    
                     db_favorite = models.Favorite(
-                        url=favorite["url"],
-                        title=favorite["title"],
-                        summary=favorite["summary"],
-                        folder_id=favorite["folder_id"]
+                        url=favorite_to_process.url,
+                        title=favorite_to_process.title,
+                        summary=summary,
+                        folder_id=suggested_folder_id
                     )
                     db.add(db_favorite)
                     db.flush()
 
-                    # Add tags
-                    for tag_name in favorite["tags"]:
+                    for tag_name in suggested_tags:
                         tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
                         if not tag:
                             tag = models.Tag(name=tag_name)
@@ -207,15 +212,23 @@ class FavoriteService:
                             db.flush()
                         db_favorite.tags.append(tag)
 
-                db.commit()
+                    favorite_to_process.processed = True
+                    db.commit()
 
-                # Add a small delay between batches to avoid overwhelming the NLP services
+                    processed_count += 1
+                    progress = int((processed_count / total_favorites) * 100)
+                    task_queue._update_task(task_id, "processing", str(progress), None)
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                # Add a small delay between processing favorites
                 await asyncio.sleep(1)
 
-            return f"Successfully imported {total_favorites} favorites"
+            return f"Successfully processed {processed_count} out of {total_favorites} favorites"
         except Exception as e:
             logger.error(f"Error importing favorites: {str(e)}")
-            db.rollback()
             raise
         finally:
             db.close()
@@ -225,6 +238,72 @@ class FavoriteService:
             self.import_favorites_task, task_name, favorites
         )
         return {"task_id": task_id}
+    
+    async def restart_import_task(self, task_name: str):
+        db = SessionLocal()
+        try:
+            # Find the restartable task and update its status
+            restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
+            if restartable_task:
+                restartable_task.status = "processing"
+                db.commit()
+
+            task_id = task_queue.add_task(
+                self.process_remaining_favorites, task_name
+            )
+            return {"task_id": task_id}
+        finally:
+            db.close()
+
+    async def process_remaining_favorites(self, task_id: str):
+        db = SessionLocal()
+        try:
+            total_favorites = db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).count()
+            processed_count = 0
+
+            for favorite_to_process in db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).all():
+                try:
+                    summary = await nlp_service.summarize_content(str(favorite_to_process.url), favorite_to_process.metadata)
+                    suggested_tags = await nlp_service.suggest_tags(summary, favorite_to_process.metadata)
+                    suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite_to_process.metadata)
+                    
+                    db_favorite = models.Favorite(
+                        url=favorite_to_process.url,
+                        title=favorite_to_process.title,
+                        summary=summary,
+                        folder_id=suggested_folder_id
+                    )
+                    db.add(db_favorite)
+                    db.flush()
+
+                    for tag_name in suggested_tags:
+                        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                        if not tag:
+                            tag = models.Tag(name=tag_name)
+                            db.add(tag)
+                            db.flush()
+                        db_favorite.tags.append(tag)
+
+                    favorite_to_process.processed = True
+                    db.commit()
+
+                    processed_count += 1
+                    progress = int((processed_count / total_favorites) * 100)
+                    task_queue._update_task(task_id, "processing", str(progress), None)
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                # Add a small delay between processing favorites
+                await asyncio.sleep(1)
+
+            return f"Successfully processed {processed_count} out of {total_favorites} remaining favorites"
+        except Exception as e:
+            logger.error(f"Error processing remaining favorites: {str(e)}")
+            raise
+        finally:
+            db.close()  
 
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
@@ -535,7 +614,6 @@ class NLPService:
 
             suggestion = llm_service.generate(prompt)
             suggestion_json = json.loads(suggestion)
-            logger.info(f"Folder suggestion: {suggestion_json}")
 
             parent_folder_id = suggestion_json.get("id")
             suggested_folder = suggestion_json["children"][0]

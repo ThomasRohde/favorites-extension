@@ -1,72 +1,34 @@
 import json
-import chromadb
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
-from datetime import datetime
-
-# Initialize ChromaDB
-chroma_client = chromadb.Client()
-collection = chroma_client.create_collection(name="favorites_embeddings")
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.orm import sessionmaker
+from database import Base, engine
+from models import Folder, Favorite, Tag, Task, FavoriteToProcess, favorite_tags
 
 # Initialize SQLAlchemy
 engine = create_engine('sqlite:///favorites.db', echo=True)
-Base = declarative_base()
-
-# Define SQLAlchemy models
-class Folder(Base):
-    __tablename__ = 'folders'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    parent_id = Column(Integer, ForeignKey('folders.id'))
-    description = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    parent = relationship('Folder', remote_side=[id], back_populates='children')
-    children = relationship('Folder', back_populates='parent')
-
-class Favorite(Base):
-    __tablename__ = 'favorites'
-    id = Column(Integer, primary_key=True)
-    url = Column(String, nullable=False)
-    title = Column(String)
-    summary = Column(String)
-    folder_id = Column(Integer, ForeignKey('folders.id'))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    folder = relationship('Folder')
-    tags = relationship('Tag', secondary='favorite_tags')
-
-class Tag(Base):
-    __tablename__ = 'tags'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-
-favorite_tags = Table('favorite_tags', Base.metadata,
-    Column('favorite_id', Integer, ForeignKey('favorites.id'), primary_key=True),
-    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
-)
-
-# Define Task model
-class Task(Base):
-    __tablename__ = 'tasks'
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    status = Column(String, nullable=False)
-    progress = Column(String, nullable=False)
-    result = Column(Text)
-
-# Create tables
-Base.metadata.drop_all(engine)  # Drop existing tables
-Base.metadata.create_all(engine)
-
-print("Database tables initialized successfully.")
-
-# Create initial folders
 Session = sessionmaker(bind=engine)
 session = Session()
+
+def clear_non_embedding_tables():
+    # Get all table names
+    inspector = inspect(engine)
+    all_tables = inspector.get_table_names()
+
+    # Tables to keep (related to vector embeddings)
+    tables_to_keep = []  # We're not keeping any tables now, as favorites_embeddings is not in SQLite
+
+    # Drop tables not related to embeddings
+    for table in all_tables:
+        if table not in tables_to_keep:
+            session.execute(text(f"DELETE FROM {table}"))
+            print(f"Cleared table: {table}")
+
+    session.commit()
+    print("Cleared all non-embedding tables.")
+
+    # Recreate tables (this step is necessary if any tables were completely dropped)
+    Base.metadata.create_all(engine)
+    print("Ensured all tables exist.")
 
 def create_folder(name, parent=None, description=None):
     folder = Folder(name=name, description=description)
@@ -81,32 +43,30 @@ def create_folder_structure(structure, parent=None):
     for child in structure.get('children', []):
         create_folder_structure(child, folder)
 
-# Load folder structure from JSON file
-with open('folder_structure.json', 'r') as f:
-    folder_structure = json.load(f)
-
-# Create folder structure
-create_folder_structure(folder_structure)
-
-session.commit()
-
-print("Initial folders created successfully.")
-
-# Verify folder structure
 def print_folder_structure(folder, level=0):
     print("  " * level + f"- {folder.name}")
     for child in folder.children:
         print_folder_structure(child, level + 1)
 
-root = session.query(Folder).filter(Folder.name == "Favorites").first()
-print("\nFolder structure:")
-print_folder_structure(root)
+if __name__ == "__main__":
+    print("Clearing non-embedding tables...")
+    clear_non_embedding_tables()
 
-# Clear task table
-session.query(Task).delete()
-session.commit()
-print("\nTask table cleared successfully.")
+    print("\nCreating initial folders...")
+    # Load folder structure from JSON file
+    with open('folder_structure.json', 'r') as f:
+        folder_structure = json.load(f)
 
-session.close()
+    # Create folder structure
+    create_folder_structure(folder_structure)
+    session.commit()
 
-print("\nDatabase setup complete.")
+    print("Initial folders created successfully.")
+
+    # Verify folder structure
+    root = session.query(Folder).filter(Folder.name == "Favorites").first()
+    print("\nFolder structure:")
+    print_folder_structure(root)
+
+    session.close()
+    print("\nDatabase setup complete.")

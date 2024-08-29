@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
+from sqlalchemy.sql import func
 from database import Base
 
 # Association table for many-to-many relationship between Favorite and Tag
@@ -45,3 +45,25 @@ class Tag(Base):
     name = Column(String, nullable=False, unique=True)
 
     favorites = relationship('Favorite', secondary=favorite_tags, back_populates='tags')
+
+class FavoriteToProcess(Base):
+    __tablename__ = 'favorites_to_process'
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False)
+    title = Column(String)
+    metainfo = Column(String)
+    processed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Task(Base):
+    __tablename__ = 'tasks'
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    progress = Column(String, nullable=False)
+    result = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

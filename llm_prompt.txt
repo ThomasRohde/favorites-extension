@@ -55,9 +55,10 @@ File: server\main.py
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+import uuid
 from database import engine, init_db
 import models
+from database import SessionLocal, engine
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
@@ -117,7 +118,44 @@ def create_application() -> FastAPI:
     application.include_router(folders_router, prefix="/api/folders", tags=["folders"])
     application.include_router(tags_router, prefix="/api/tags", tags=["tags"])
 
+    @application.on_event("startup")
+    async def startup_event():
+        db = SessionLocal()
+        print("STARTUP")
+        try:
+            # Set all "processing" tasks to "failed"
+            db.query(models.Task).filter(models.Task.status == "processing").update({"status": "failed"})
+            
+            # Check for unprocessed favorites
+            unprocessed_count = db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).count()
+            
+            if unprocessed_count > 0:
+                # Check if there's already a restartable task
+                existing_restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
+                
+                if not existing_restartable_task:
+                    # Create a new "restartable" task only if one doesn't exist
+                    restartable_task = models.Task(
+                        id=str(uuid.uuid4()),
+                        name="Restart Import Favorites",
+                        status="restartable",
+                        progress="0",
+                        result=f"{unprocessed_count} favorites need to be processed"
+                    )
+                    db.add(restartable_task)
+                    logger.info(f"Created new restartable task: {restartable_task.id}")
+                else:
+                    logger.info(f"Existing restartable task found: {existing_restartable_task.id}")
+            
+            db.commit()
+        except Exception as e:
+            logger.error(f"Error during startup: {str(e)}")
+            db.rollback()
+        finally:
+            db.close()
+
     return application
+
 
 app = create_application()
 
@@ -1239,6 +1277,7 @@ from database import get_db
 import schemas
 from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
+from models import Task, FavoriteToProcess
 
 router = APIRouter()
 
@@ -1263,9 +1302,50 @@ async def get_task_status(task_id: str):
     return schemas.TaskStatusDetail(**task_status)
 
 @router.get("/tasks", response_model=List[schemas.TaskStatus])
-async def get_tasks():
+async def get_tasks(db: Session = Depends(get_db)):
     tasks = task_queue.get_all_tasks()
+    
+    # Check if there are no running processes from import
+    running_import_tasks = [task for task in tasks if task["status"] == "processing" and "Import Favorites" in task["name"]]
+    print("Entering")
+    if not running_import_tasks:
+        # Check for unprocessed tasks in favorites_to_process
+        unprocessed_count = db.query(FavoriteToProcess).filter(FavoriteToProcess.processed == False).count()
+        
+        if unprocessed_count > 0:
+            # Check if a restartable task already exists
+            existing_restartable_task = db.query(Task).filter(Task.status == "restartable").first()
+            if not existing_restartable_task:
+                # Create a new restartable task only if one doesn't already exist
+                restartable_task = Task(
+                    id=task_queue.generate_task_id(),
+                    name="Restart Import Favorites",
+                    status="restartable",
+                    progress="0",
+                    result=f"{unprocessed_count} favorites need to be processed"
+                )
+                db.add(restartable_task)
+                db.commit()
+                
+                # Add the new restartable task to the list of tasks
+                tasks.append({
+                    "id": restartable_task.id,
+                    "name": restartable_task.name,
+                    "status": restartable_task.status,
+                    "progress": restartable_task.progress
+                })
+    
     return [schemas.TaskStatus(**task) for task in tasks]
+
+@router.post("/restart-import", response_model=Dict[str, str])
+async def restart_import():
+    try:
+        task_name = "Restart Import Favorites"
+        result = await favorite_service.restart_import_task(task_name)
+        return {"task_id": result["task_id"]}
+    except Exception as e:
+        logger.error(f"Unexpected error during import restart: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
@@ -1886,74 +1966,36 @@ def get_folder_favorites(folder_id: int, skip: int = 0, limit: int = 100, db: Se
 File: server\initDB.py
 
 import json
-import chromadb
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
-from datetime import datetime
-
-# Initialize ChromaDB
-chroma_client = chromadb.Client()
-collection = chroma_client.create_collection(name="favorites_embeddings")
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.orm import sessionmaker
+from database import Base, engine
+from models import Folder, Favorite, Tag, Task, FavoriteToProcess, favorite_tags
 
 # Initialize SQLAlchemy
 engine = create_engine('sqlite:///favorites.db', echo=True)
-Base = declarative_base()
-
-# Define SQLAlchemy models
-class Folder(Base):
-    __tablename__ = 'folders'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    parent_id = Column(Integer, ForeignKey('folders.id'))
-    description = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    parent = relationship('Folder', remote_side=[id], back_populates='children')
-    children = relationship('Folder', back_populates='parent')
-
-class Favorite(Base):
-    __tablename__ = 'favorites'
-    id = Column(Integer, primary_key=True)
-    url = Column(String, nullable=False)
-    title = Column(String)
-    summary = Column(String)
-    folder_id = Column(Integer, ForeignKey('folders.id'))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    folder = relationship('Folder')
-    tags = relationship('Tag', secondary='favorite_tags')
-
-class Tag(Base):
-    __tablename__ = 'tags'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-
-favorite_tags = Table('favorite_tags', Base.metadata,
-    Column('favorite_id', Integer, ForeignKey('favorites.id'), primary_key=True),
-    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
-)
-
-# Define Task model
-class Task(Base):
-    __tablename__ = 'tasks'
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    status = Column(String, nullable=False)
-    progress = Column(String, nullable=False)
-    result = Column(Text)
-
-# Create tables
-Base.metadata.drop_all(engine)  # Drop existing tables
-Base.metadata.create_all(engine)
-
-print("Database tables initialized successfully.")
-
-# Create initial folders
 Session = sessionmaker(bind=engine)
 session = Session()
+
+def clear_non_embedding_tables():
+    # Get all table names
+    inspector = inspect(engine)
+    all_tables = inspector.get_table_names()
+
+    # Tables to keep (related to vector embeddings)
+    tables_to_keep = []  # We're not keeping any tables now, as favorites_embeddings is not in SQLite
+
+    # Drop tables not related to embeddings
+    for table in all_tables:
+        if table not in tables_to_keep:
+            session.execute(text(f"DELETE FROM {table}"))
+            print(f"Cleared table: {table}")
+
+    session.commit()
+    print("Cleared all non-embedding tables.")
+
+    # Recreate tables (this step is necessary if any tables were completely dropped)
+    Base.metadata.create_all(engine)
+    print("Ensured all tables exist.")
 
 def create_folder(name, parent=None, description=None):
     folder = Folder(name=name, description=description)
@@ -1968,35 +2010,33 @@ def create_folder_structure(structure, parent=None):
     for child in structure.get('children', []):
         create_folder_structure(child, folder)
 
-# Load folder structure from JSON file
-with open('folder_structure.json', 'r') as f:
-    folder_structure = json.load(f)
-
-# Create folder structure
-create_folder_structure(folder_structure)
-
-session.commit()
-
-print("Initial folders created successfully.")
-
-# Verify folder structure
 def print_folder_structure(folder, level=0):
     print("  " * level + f"- {folder.name}")
     for child in folder.children:
         print_folder_structure(child, level + 1)
 
-root = session.query(Folder).filter(Folder.name == "Favorites").first()
-print("\nFolder structure:")
-print_folder_structure(root)
+if __name__ == "__main__":
+    print("Clearing non-embedding tables...")
+    clear_non_embedding_tables()
 
-# Clear task table
-session.query(Task).delete()
-session.commit()
-print("\nTask table cleared successfully.")
+    print("\nCreating initial folders...")
+    # Load folder structure from JSON file
+    with open('folder_structure.json', 'r') as f:
+        folder_structure = json.load(f)
 
-session.close()
+    # Create folder structure
+    create_folder_structure(folder_structure)
+    session.commit()
 
-print("\nDatabase setup complete.")
+    print("Initial folders created successfully.")
+
+    # Verify folder structure
+    root = session.query(Folder).filter(Folder.name == "Favorites").first()
+    print("\nFolder structure:")
+    print_folder_structure(root)
+
+    session.close()
+    print("\nDatabase setup complete.")
 
 ---
 
@@ -2195,10 +2235,10 @@ llm_service = LLMService(AnthropicProvider())
 
 File: server\models.py
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
+from sqlalchemy.sql import func
 from database import Base
 
 # Association table for many-to-many relationship between Favorite and Tag
@@ -2242,6 +2282,28 @@ class Tag(Base):
     name = Column(String, nullable=False, unique=True)
 
     favorites = relationship('Favorite', secondary=favorite_tags, back_populates='tags')
+
+class FavoriteToProcess(Base):
+    __tablename__ = 'favorites_to_process'
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False)
+    title = Column(String)
+    metainfo = Column(String)
+    processed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Task(Base):
+    __tablename__ = 'tasks'
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    progress = Column(String, nullable=False)
+    result = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 ---
 
@@ -2517,30 +2579,35 @@ class FavoriteService:
         db = SessionLocal()
         try:
             total_favorites = len(favorites)
-            batch_size = 5  # Process 5 favorites at a time
-            num_batches = math.ceil(total_favorites / batch_size)
+            
+            # Store all favorites to process
+            for favorite in favorites:
+                db_favorite_to_process = models.FavoriteToProcess(
+                    url=str(favorite.url),
+                    title=favorite.title,
+                    metainfo=favorite.metadata
+                )
+                db.add(db_favorite_to_process)
+            db.commit()
 
-            for i in range(0, total_favorites, batch_size):
-                batch = favorites[i:i+batch_size]
-                progress = int((i / total_favorites) * 100)
-                task_queue._update_task(task_id, "processing", str(progress), None)
-
-                # Process batch
-                processed_batch = await self.process_favorite_batch(db, batch)
-
-                # Save processed favorites to database
-                for favorite in processed_batch:
+            # Process favorites
+            processed_count = 0
+            for favorite_to_process in db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).all():
+                try:
+                    summary = await nlp_service.summarize_content(str(favorite_to_process.url), favorite_to_process.metainfo)
+                    suggested_tags = await nlp_service.suggest_tags(summary, favorite_to_process.metainfo)
+                    suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite_to_process.metainfo)
+                    
                     db_favorite = models.Favorite(
-                        url=favorite["url"],
-                        title=favorite["title"],
-                        summary=favorite["summary"],
-                        folder_id=favorite["folder_id"]
+                        url=favorite_to_process.url,
+                        title=favorite_to_process.title,
+                        summary=summary,
+                        folder_id=suggested_folder_id
                     )
                     db.add(db_favorite)
                     db.flush()
 
-                    # Add tags
-                    for tag_name in favorite["tags"]:
+                    for tag_name in suggested_tags:
                         tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
                         if not tag:
                             tag = models.Tag(name=tag_name)
@@ -2548,15 +2615,23 @@ class FavoriteService:
                             db.flush()
                         db_favorite.tags.append(tag)
 
-                db.commit()
+                    favorite_to_process.processed = True
+                    db.commit()
 
-                # Add a small delay between batches to avoid overwhelming the NLP services
+                    processed_count += 1
+                    progress = int((processed_count / total_favorites) * 100)
+                    task_queue._update_task(task_id, "processing", str(progress), None)
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                # Add a small delay between processing favorites
                 await asyncio.sleep(1)
 
-            return f"Successfully imported {total_favorites} favorites"
+            return f"Successfully processed {processed_count} out of {total_favorites} favorites"
         except Exception as e:
             logger.error(f"Error importing favorites: {str(e)}")
-            db.rollback()
             raise
         finally:
             db.close()
@@ -2566,6 +2641,72 @@ class FavoriteService:
             self.import_favorites_task, task_name, favorites
         )
         return {"task_id": task_id}
+    
+    async def restart_import_task(self, task_name: str):
+        db = SessionLocal()
+        try:
+            # Find the restartable task and update its status
+            restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
+            if restartable_task:
+                restartable_task.status = "processing"
+                db.commit()
+
+            task_id = task_queue.add_task(
+                self.process_remaining_favorites, task_name
+            )
+            return {"task_id": task_id}
+        finally:
+            db.close()
+
+    async def process_remaining_favorites(self, task_id: str):
+        db = SessionLocal()
+        try:
+            total_favorites = db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).count()
+            processed_count = 0
+
+            for favorite_to_process in db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).all():
+                try:
+                    summary = await nlp_service.summarize_content(str(favorite_to_process.url), favorite_to_process.metadata)
+                    suggested_tags = await nlp_service.suggest_tags(summary, favorite_to_process.metadata)
+                    suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite_to_process.metadata)
+                    
+                    db_favorite = models.Favorite(
+                        url=favorite_to_process.url,
+                        title=favorite_to_process.title,
+                        summary=summary,
+                        folder_id=suggested_folder_id
+                    )
+                    db.add(db_favorite)
+                    db.flush()
+
+                    for tag_name in suggested_tags:
+                        tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                        if not tag:
+                            tag = models.Tag(name=tag_name)
+                            db.add(tag)
+                            db.flush()
+                        db_favorite.tags.append(tag)
+
+                    favorite_to_process.processed = True
+                    db.commit()
+
+                    processed_count += 1
+                    progress = int((processed_count / total_favorites) * 100)
+                    task_queue._update_task(task_id, "processing", str(progress), None)
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                # Add a small delay between processing favorites
+                await asyncio.sleep(1)
+
+            return f"Successfully processed {processed_count} out of {total_favorites} remaining favorites"
+        except Exception as e:
+            logger.error(f"Error processing remaining favorites: {str(e)}")
+            raise
+        finally:
+            db.close()  
 
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
@@ -2876,7 +3017,6 @@ class NLPService:
 
             suggestion = llm_service.generate(prompt)
             suggestion_json = json.loads(suggestion)
-            logger.info(f"Folder suggestion: {suggestion_json}")
 
             parent_folder_id = suggestion_json.get("id")
             suggested_folder = suggestion_json["children"][0]
@@ -3034,16 +3174,7 @@ import asyncio
 import uuid
 import json
 from datetime import datetime, timezone
-
-class Task(Base):
-    __tablename__ = "tasks"
-
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String)
-    status = Column(String)
-    progress = Column(String)
-    result = Column(JSON)
-    created_at = Column(DateTime, nullable=True)
+from models import Task
 
 class TaskQueue:
     def __init__(self):
@@ -3062,6 +3193,9 @@ class TaskQueue:
                     conn.execute(text("ALTER TABLE tasks ADD COLUMN created_at DATETIME"))
                     conn.commit()
 
+    def generate_task_id(self):
+        return str(uuid.uuid4())
+    
     def add_task(self, task_func, task_name, *args, **kwargs):
         task_id = str(uuid.uuid4())
         with SessionLocal() as db:
@@ -3108,6 +3242,19 @@ class TaskQueue:
     def get_all_tasks(self):
         with SessionLocal() as db:
             tasks = db.query(Task).order_by(Task.created_at.desc()).all()
+        return [
+            {
+                "id": task.id,
+                "name": task.name,
+                "status": task.status,
+                "progress": task.progress,
+                "created_at": task.created_at.isoformat() if task.created_at else None
+            } for task in tasks
+        ]
+    
+    def get_restartable_tasks(self):
+        with SessionLocal() as db:
+            tasks = db.query(Task).filter(Task.status == "restartable").all()
         return [
             {
                 "id": task.id,

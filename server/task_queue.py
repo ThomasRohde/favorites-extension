@@ -6,16 +6,7 @@ import asyncio
 import uuid
 import json
 from datetime import datetime, timezone
-
-class Task(Base):
-    __tablename__ = "tasks"
-
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String)
-    status = Column(String)
-    progress = Column(String)
-    result = Column(JSON)
-    created_at = Column(DateTime, nullable=True)
+from models import Task
 
 class TaskQueue:
     def __init__(self):
@@ -34,6 +25,9 @@ class TaskQueue:
                     conn.execute(text("ALTER TABLE tasks ADD COLUMN created_at DATETIME"))
                     conn.commit()
 
+    def generate_task_id(self):
+        return str(uuid.uuid4())
+    
     def add_task(self, task_func, task_name, *args, **kwargs):
         task_id = str(uuid.uuid4())
         with SessionLocal() as db:
@@ -80,6 +74,19 @@ class TaskQueue:
     def get_all_tasks(self):
         with SessionLocal() as db:
             tasks = db.query(Task).order_by(Task.created_at.desc()).all()
+        return [
+            {
+                "id": task.id,
+                "name": task.name,
+                "status": task.status,
+                "progress": task.progress,
+                "created_at": task.created_at.isoformat() if task.created_at else None
+            } for task in tasks
+        ]
+    
+    def get_restartable_tasks(self):
+        with SessionLocal() as db:
+            tasks = db.query(Task).filter(Task.status == "restartable").all()
         return [
             {
                 "id": task.id,

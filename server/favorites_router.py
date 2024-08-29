@@ -10,6 +10,7 @@ from database import get_db
 import schemas
 from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
+from models import Task, FavoriteToProcess
 
 router = APIRouter()
 
@@ -34,9 +35,50 @@ async def get_task_status(task_id: str):
     return schemas.TaskStatusDetail(**task_status)
 
 @router.get("/tasks", response_model=List[schemas.TaskStatus])
-async def get_tasks():
+async def get_tasks(db: Session = Depends(get_db)):
     tasks = task_queue.get_all_tasks()
+    
+    # Check if there are no running processes from import
+    running_import_tasks = [task for task in tasks if task["status"] == "processing" and "Import Favorites" in task["name"]]
+    print("Entering")
+    if not running_import_tasks:
+        # Check for unprocessed tasks in favorites_to_process
+        unprocessed_count = db.query(FavoriteToProcess).filter(FavoriteToProcess.processed == False).count()
+        
+        if unprocessed_count > 0:
+            # Check if a restartable task already exists
+            existing_restartable_task = db.query(Task).filter(Task.status == "restartable").first()
+            if not existing_restartable_task:
+                # Create a new restartable task only if one doesn't already exist
+                restartable_task = Task(
+                    id=task_queue.generate_task_id(),
+                    name="Restart Import Favorites",
+                    status="restartable",
+                    progress="0",
+                    result=f"{unprocessed_count} favorites need to be processed"
+                )
+                db.add(restartable_task)
+                db.commit()
+                
+                # Add the new restartable task to the list of tasks
+                tasks.append({
+                    "id": restartable_task.id,
+                    "name": restartable_task.name,
+                    "status": restartable_task.status,
+                    "progress": restartable_task.progress
+                })
+    
     return [schemas.TaskStatus(**task) for task in tasks]
+
+@router.post("/restart-import", response_model=Dict[str, str])
+async def restart_import():
+    try:
+        task_name = "Restart Import Favorites"
+        result = await favorite_service.restart_import_task(task_name)
+        return {"task_id": result["task_id"]}
+    except Exception as e:
+        logger.error(f"Unexpected error during import restart: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{favorite_id}", response_model=schemas.Favorite)
 def read_favorite(favorite_id: int, db: Session = Depends(get_db)):
