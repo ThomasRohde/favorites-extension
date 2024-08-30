@@ -2482,12 +2482,13 @@ class FavoriteService:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             result = loop.run_until_complete(task_func(task_id))
-            self._update_task(task_id, "completed", "100", result)
+            task_queue._update_task(task_id, "completed", "100", result)
         except Exception as e:
-            self._update_task(task_id, "failed", "0", str(e))
+            logger.error(f"Error in _run_task_wrapper: {str(e)}", exc_info=True)
+            task_queue._update_task(task_id, "failed", "0", str(e))
         finally:
             loop.close()
-            
+
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
             self.create_favorite_task, task_name, favorite.dict()
@@ -2697,7 +2698,7 @@ class FavoriteService:
             logger.error(f"Error processing remaining favorites: {str(e)}")
             raise
         finally:
-            db.close()  
+            db.close()
 
 class FolderService:
     def create_folder(self, db: Session, folder: schemas.FolderCreate) -> models.Folder:
