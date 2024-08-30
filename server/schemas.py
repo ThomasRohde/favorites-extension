@@ -13,7 +13,7 @@ class Tag(TagBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for Folder
 class FolderBase(BaseModel):
@@ -30,7 +30,7 @@ class Folder(FolderBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for Favorite
 class FavoriteBase(BaseModel):
@@ -57,7 +57,7 @@ class Favorite(FavoriteBase):
     tags: List[Tag] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for nested relationships
 class FolderWithChildren(Folder):
@@ -65,7 +65,7 @@ class FolderWithChildren(Folder):
     favorites: List[Favorite] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TaskStatus(BaseModel):
     id: str

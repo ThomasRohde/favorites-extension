@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (33%), Markdown (10%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (33%), Markdown (12%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -152,7 +152,7 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py") 
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py", log_level="warning") 
 
 ---
 
@@ -2307,7 +2307,7 @@ class Tag(TagBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for Folder
 class FolderBase(BaseModel):
@@ -2324,7 +2324,7 @@ class Folder(FolderBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for Favorite
 class FavoriteBase(BaseModel):
@@ -2351,7 +2351,7 @@ class Favorite(FavoriteBase):
     tags: List[Tag] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Schemas for nested relationships
 class FolderWithChildren(Folder):
@@ -2359,7 +2359,7 @@ class FolderWithChildren(Folder):
     favorites: List[Favorite] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TaskStatus(BaseModel):
     id: str

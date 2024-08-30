@@ -97,4 +97,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py") 
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py", log_level="warning") 
