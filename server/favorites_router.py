@@ -38,34 +38,33 @@ async def get_task_status(task_id: str):
 async def get_tasks(db: Session = Depends(get_db)):
     tasks = task_queue.get_all_tasks()
     
-    # Check if there are no running processes from import
-    running_import_tasks = [task for task in tasks if task["status"] == "processing" and "Import Favorites" in task["name"]]
-    if not running_import_tasks:
+    # Check if there are any running tasks or existing restartable tasks
+    running_tasks = [task for task in tasks if task["status"] == "processing"]
+    restartable_tasks = [task for task in tasks if task["status"] == "restartable"]
+    
+    if not running_tasks and not restartable_tasks:
         # Check for unprocessed tasks in favorites_to_process
         unprocessed_count = db.query(FavoriteToProcess).filter(FavoriteToProcess.processed == False).count()
         
         if unprocessed_count > 0:
-            # Check if a restartable task already exists
-            existing_restartable_task = db.query(Task).filter(Task.status == "restartable").first()
-            if not existing_restartable_task:
-                # Create a new restartable task only if one doesn't already exist
-                restartable_task = Task(
-                    id=task_queue.generate_task_id(),
-                    name="Restart Import Favorites",
-                    status="restartable",
-                    progress="0",
-                    result=f"{unprocessed_count} favorites need to be processed"
-                )
-                db.add(restartable_task)
-                db.commit()
-                
-                # Add the new restartable task to the list of tasks
-                tasks.append({
-                    "id": restartable_task.id,
-                    "name": restartable_task.name,
-                    "status": restartable_task.status,
-                    "progress": restartable_task.progress
-                })
+            # Create a new restartable task
+            restartable_task = Task(
+                id=task_queue.generate_task_id(),
+                name="Restart Import Favorites",
+                status="restartable",
+                progress="0",
+                result=f"{unprocessed_count} favorites need to be processed"
+            )
+            db.add(restartable_task)
+            db.commit()
+            
+            # Add the new restartable task to the list of tasks
+            tasks.append({
+                "id": restartable_task.id,
+                "name": restartable_task.name,
+                "status": restartable_task.status,
+                "progress": restartable_task.progress
+            })
     
     return [schemas.TaskStatus(**task) for task in tasks]
 

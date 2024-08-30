@@ -7,6 +7,7 @@ from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup
 import logging
+from threading import Thread
 import re
 from typing import Union
 from task_queue import task_queue
@@ -90,6 +91,17 @@ class FavoriteService:
         finally:
             db.close()
 
+    def _run_task_wrapper(self, task_id, task_func):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(task_func(task_id))
+            self._update_task(task_id, "completed", "100", result)
+        except Exception as e:
+            self._update_task(task_id, "failed", "0", str(e))
+        finally:
+            loop.close()
+            
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
             self.create_favorite_task, task_name, favorite.dict()
@@ -230,16 +242,24 @@ class FavoriteService:
     async def restart_import_task(self, task_name: str):
         db = SessionLocal()
         try:
-            # Find the restartable task and update its status
+            # Find the restartable task
             restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
             if restartable_task:
+                # Update its status to processing
                 restartable_task.status = "processing"
                 db.commit()
-
-            task_id = task_queue.add_task(
-                self.process_remaining_favorites, task_name
-            )
-            return {"task_id": task_id}
+                
+                # Start processing remaining favorites without creating a new task
+                Thread(target=self._run_task_wrapper, args=(restartable_task.id, self.process_remaining_favorites)).start()
+                
+                return {"task_id": restartable_task.id}
+            else:
+                # If no restartable task exists, create a new one (this should not happen in your scenario)
+                logger.warning("No restartable task found when trying to restart import.")
+                task_id = task_queue.add_task(
+                    self.process_remaining_favorites, task_name
+                )
+                return {"task_id": task_id}
         finally:
             db.close()
 
