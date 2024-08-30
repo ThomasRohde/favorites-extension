@@ -35,7 +35,7 @@ def create_json_for_import(links):
     return json.dumps(links, indent=2)
 
 def main():
-    markdown_file = "awesome_programming_links.md"  # Replace with your Markdown file path
+    markdown_file = "generative_ai_links.md"  # Replace with your Markdown file path
     output_file = "import_ready_links.json"
 
     links = parse_markdown(markdown_file)

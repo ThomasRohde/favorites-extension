@@ -2,9 +2,9 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-from database import engine, init_db
+from contextlib import asynccontextmanager
+from database import engine, init_db, SessionLocal
 import models
-from database import SessionLocal, engine
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
@@ -13,8 +13,29 @@ from tags_router import router as tags_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Clear the tasks table and handle unprocessed favorites
+    db = SessionLocal()
+    try:
+        # Clear all tasks
+        db.query(models.Task).delete()
+        db.commit() 
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+    
+    yield  # This is where the app runs
+    
+    # Shutdown: Add any cleanup code here if needed
+    pass
+
 def create_application() -> FastAPI:
     application = FastAPI(
+        lifespan=lifespan,
         title="Intelligent Favorites Extension API",
         description="""
         This API provides endpoints for managing an intelligent favorites system. 
@@ -64,44 +85,7 @@ def create_application() -> FastAPI:
     application.include_router(folders_router, prefix="/api/folders", tags=["folders"])
     application.include_router(tags_router, prefix="/api/tags", tags=["tags"])
 
-    @application.on_event("startup")
-    async def startup_event():
-        db = SessionLocal()
-        print("STARTUP")
-        try:
-            # Set all "processing" tasks to "failed"
-            db.query(models.Task).filter(models.Task.status == "processing").update({"status": "failed"})
-            
-            # Check for unprocessed favorites
-            unprocessed_count = db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).count()
-            
-            if unprocessed_count > 0:
-                # Check if there's already a restartable task
-                existing_restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
-                
-                if not existing_restartable_task:
-                    # Create a new "restartable" task only if one doesn't exist
-                    restartable_task = models.Task(
-                        id=str(uuid.uuid4()),
-                        name="Restart Import Favorites",
-                        status="restartable",
-                        progress="0",
-                        result=f"{unprocessed_count} favorites need to be processed"
-                    )
-                    db.add(restartable_task)
-                    logger.info(f"Created new restartable task: {restartable_task.id}")
-                else:
-                    logger.info(f"Existing restartable task found: {existing_restartable_task.id}")
-            
-            db.commit()
-        except Exception as e:
-            logger.error(f"Error during startup: {str(e)}")
-            db.rollback()
-        finally:
-            db.close()
-
     return application
-
 
 app = create_application()
 
@@ -113,4 +97,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py") 

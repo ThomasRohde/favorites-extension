@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (33%), Markdown (8%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (34%), Markdown (8%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -32,7 +32,8 @@ The following is a concise directory tree of the project, limited to 3 levels de
 │   │   ├── suggest_tags.j2
 │   │   └── summarize_content.j2
 │   ├── requirements.txt
-│   └── content_extractor.py
+│   ├── content_extractor.py
+│   └── cleanTasksDB.py
 ├── README.md
 └── extension
     ├── manifest.json
@@ -56,9 +57,9 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-from database import engine, init_db
+from contextlib import asynccontextmanager
+from database import engine, init_db, SessionLocal
 import models
-from database import SessionLocal, engine
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
@@ -67,8 +68,29 @@ from tags_router import router as tags_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Clear the tasks table and handle unprocessed favorites
+    db = SessionLocal()
+    try:
+        # Clear all tasks
+        db.query(models.Task).delete()
+        db.commit() 
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()
+    
+    yield  # This is where the app runs
+    
+    # Shutdown: Add any cleanup code here if needed
+    pass
+
 def create_application() -> FastAPI:
     application = FastAPI(
+        lifespan=lifespan,
         title="Intelligent Favorites Extension API",
         description="""
         This API provides endpoints for managing an intelligent favorites system. 
@@ -118,44 +140,7 @@ def create_application() -> FastAPI:
     application.include_router(folders_router, prefix="/api/folders", tags=["folders"])
     application.include_router(tags_router, prefix="/api/tags", tags=["tags"])
 
-    @application.on_event("startup")
-    async def startup_event():
-        db = SessionLocal()
-        print("STARTUP")
-        try:
-            # Set all "processing" tasks to "failed"
-            db.query(models.Task).filter(models.Task.status == "processing").update({"status": "failed"})
-            
-            # Check for unprocessed favorites
-            unprocessed_count = db.query(models.FavoriteToProcess).filter(models.FavoriteToProcess.processed == False).count()
-            
-            if unprocessed_count > 0:
-                # Check if there's already a restartable task
-                existing_restartable_task = db.query(models.Task).filter(models.Task.status == "restartable").first()
-                
-                if not existing_restartable_task:
-                    # Create a new "restartable" task only if one doesn't exist
-                    restartable_task = models.Task(
-                        id=str(uuid.uuid4()),
-                        name="Restart Import Favorites",
-                        status="restartable",
-                        progress="0",
-                        result=f"{unprocessed_count} favorites need to be processed"
-                    )
-                    db.add(restartable_task)
-                    logger.info(f"Created new restartable task: {restartable_task.id}")
-                else:
-                    logger.info(f"Existing restartable task found: {existing_restartable_task.id}")
-            
-            db.commit()
-        except Exception as e:
-            logger.error(f"Error during startup: {str(e)}")
-            db.rollback()
-        finally:
-            db.close()
-
     return application
-
 
 app = create_application()
 
@@ -167,7 +152,7 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py") 
 
 ---
 
@@ -1307,7 +1292,6 @@ async def get_tasks(db: Session = Depends(get_db)):
     
     # Check if there are no running processes from import
     running_import_tasks = [task for task in tasks if task["status"] == "processing" and "Import Favorites" in task["name"]]
-    print("Entering")
     if not running_import_tasks:
         # Check for unprocessed tasks in favorites_to_process
         unprocessed_count = db.query(FavoriteToProcess).filter(FavoriteToProcess.processed == False).count()
@@ -2559,22 +2543,6 @@ class FavoriteService:
         )
         return {"task_id": task_id}
 
-    async def process_favorite_batch(self, db: Session, batch: List[schemas.FavoriteImport]):
-        processed_favorites = []
-        for favorite in batch:
-            summary = await nlp_service.summarize_content(str(favorite.url), favorite.metadata)
-            suggested_tags = await nlp_service.suggest_tags(summary, favorite.metadata)
-            suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite.metadata)
-            
-            processed_favorites.append({
-                "url": str(favorite.url),
-                "title": favorite.title,
-                "summary": summary,
-                "folder_id": suggested_folder_id,
-                "tags": suggested_tags
-            })
-        return processed_favorites
-
     async def import_favorites_task(self, task_id: str, favorites: List[schemas.FavoriteImport]):
         db = SessionLocal()
         try:
@@ -2615,16 +2583,20 @@ class FavoriteService:
                             db.flush()
                         db_favorite.tags.append(tag)
 
-                    favorite_to_process.processed = True
+                    db.commit()
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                finally:
+                    # Delete the processed favorite from FavoriteToProcess, regardless of success or failure
+                    db.delete(favorite_to_process)
                     db.commit()
 
                     processed_count += 1
                     progress = int((processed_count / total_favorites) * 100)
                     task_queue._update_task(task_id, "processing", str(progress), None)
-
-                except Exception as e:
-                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
-                    db.rollback()
 
                 # Add a small delay between processing favorites
                 await asyncio.sleep(1)
@@ -3634,6 +3606,61 @@ class ContentExtractor:
         content = meta_info.get('og:description', meta_info.get('description', 'No content found'))
 
         return meta_text, content
+
+---
+
+File: server\cleanTasksDB.py
+
+import logging
+from sqlalchemy import create_engine, desc
+from sqlalchemy.orm import sessionmaker
+from models import Task, Base, FavoriteToProcess
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Initialize SQLAlchemy
+engine = create_engine('sqlite:///favorites.db', echo=True)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+def clean_task_table():
+    try:
+        # Remove all failed tasks
+        failed_tasks = session.query(Task).filter(Task.status == "failed").all()
+        for task in failed_tasks:
+            session.delete(task)
+        logger.info(f"Removed {len(failed_tasks)} failed tasks.")
+
+        # Keep only the most recent "Restart" task
+        restart_tasks = session.query(Task).filter(Task.name.like("%Restart%")).order_by(desc(Task.created_at)).all()
+        if restart_tasks:
+            latest_restart = restart_tasks[0]
+            for task in restart_tasks[1:]:
+                session.delete(task)
+            logger.info(f"Kept the most recent Restart task (ID: {latest_restart.id}) and removed {len(restart_tasks) - 1} older Restart tasks.")
+        else:
+            logger.info("No Restart tasks found.")
+
+        # Remove all records from favorites_to_process table
+        favorites_to_process_count = session.query(FavoriteToProcess).delete()
+        logger.info(f"Removed {favorites_to_process_count} records from favorites_to_process table.")
+
+        # Commit the changes
+        session.commit()
+        logger.info("Task table cleaned successfully.")
+
+    except Exception as e:
+        logger.error(f"An error occurred while cleaning the task table: {str(e)}")
+        session.rollback()
+    finally:
+        session.close()
+
+if __name__ == "__main__":
+    logger.info("Starting task table cleanup...")
+    clean_task_table()
+    logger.info("Task table cleanup completed.")
 
 ---
 

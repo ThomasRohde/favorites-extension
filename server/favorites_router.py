@@ -40,7 +40,6 @@ async def get_tasks(db: Session = Depends(get_db)):
     
     # Check if there are no running processes from import
     running_import_tasks = [task for task in tasks if task["status"] == "processing" and "Import Favorites" in task["name"]]
-    print("Entering")
     if not running_import_tasks:
         # Check for unprocessed tasks in favorites_to_process
         unprocessed_count = db.query(FavoriteToProcess).filter(FavoriteToProcess.processed == False).count()

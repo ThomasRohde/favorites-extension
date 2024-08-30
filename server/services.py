@@ -156,22 +156,6 @@ class FavoriteService:
         )
         return {"task_id": task_id}
 
-    async def process_favorite_batch(self, db: Session, batch: List[schemas.FavoriteImport]):
-        processed_favorites = []
-        for favorite in batch:
-            summary = await nlp_service.summarize_content(str(favorite.url), favorite.metadata)
-            suggested_tags = await nlp_service.suggest_tags(summary, favorite.metadata)
-            suggested_folder_id = await nlp_service.suggest_folder(db, summary, favorite.metadata)
-            
-            processed_favorites.append({
-                "url": str(favorite.url),
-                "title": favorite.title,
-                "summary": summary,
-                "folder_id": suggested_folder_id,
-                "tags": suggested_tags
-            })
-        return processed_favorites
-
     async def import_favorites_task(self, task_id: str, favorites: List[schemas.FavoriteImport]):
         db = SessionLocal()
         try:
@@ -212,16 +196,20 @@ class FavoriteService:
                             db.flush()
                         db_favorite.tags.append(tag)
 
-                    favorite_to_process.processed = True
+                    db.commit()
+
+                except Exception as e:
+                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
+                    db.rollback()
+
+                finally:
+                    # Delete the processed favorite from FavoriteToProcess, regardless of success or failure
+                    db.delete(favorite_to_process)
                     db.commit()
 
                     processed_count += 1
                     progress = int((processed_count / total_favorites) * 100)
                     task_queue._update_task(task_id, "processing", str(progress), None)
-
-                except Exception as e:
-                    logger.error(f"Error processing favorite {favorite_to_process.url}: {str(e)}")
-                    db.rollback()
 
                 # Add a small delay between processing favorites
                 await asyncio.sleep(1)

@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
-from models import Task, Base
+from models import Task, Base, FavoriteToProcess
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,6 +29,10 @@ def clean_task_table():
             logger.info(f"Kept the most recent Restart task (ID: {latest_restart.id}) and removed {len(restart_tasks) - 1} older Restart tasks.")
         else:
             logger.info("No Restart tasks found.")
+
+        # Remove all records from favorites_to_process table
+        favorites_to_process_count = session.query(FavoriteToProcess).delete()
+        logger.info(f"Removed {favorites_to_process_count} records from favorites_to_process table.")
 
         # Commit the changes
         session.commit()
