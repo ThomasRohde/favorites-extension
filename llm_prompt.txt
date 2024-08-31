@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (30%), Markdown (10%), JSON (5%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python, SQLite.
+This project is primarily written in Python (31%), Markdown (10%), JSON (5%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python, SQLite.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
