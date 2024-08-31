@@ -26,6 +26,7 @@ import os
 from content_extractor import ContentExtractor
 from typing import List
 import math
+from vector_store import vector_store
 
 builtins.print = rprint
 
@@ -83,6 +84,10 @@ class FavoriteService:
                 db_favorite.tags.append(tag)
 
             db.commit()
+
+            # Add or update the favorite in the vector store
+            vector_store.add_favorite(db_favorite.id, db_favorite.url, db_favorite.title, db_favorite.summary)
+
             return db_favorite.id
         except Exception as e:
             logger.error(f"Error creating favorite: {str(e)}")
@@ -102,6 +107,9 @@ class FavoriteService:
             task_queue._update_task(task_id, "failed", "0", str(e))
         finally:
             loop.close()
+
+    def get_favorites_by_ids(self, db: Session, favorite_ids: List[int]) -> List[models.Favorite]:
+            return db.query(models.Favorite).filter(models.Favorite.id.in_(favorite_ids)).all()
 
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
@@ -131,6 +139,10 @@ class FavoriteService:
                 setattr(db_favorite, key, value)
             db.commit()
             db.refresh(db_favorite)
+
+             # Update the favorite in the vector store
+            vector_store.update_favorite(db_favorite.id, db_favorite.url, db_favorite.title, db_favorite.summary)
+
         return db_favorite
 
     def delete_favorite(
@@ -142,6 +154,10 @@ class FavoriteService:
         if db_favorite:
             db.delete(db_favorite)
             db.commit()
+
+            # Delete the favorite from the vector store
+            vector_store.delete_favorite(favorite_id)
+            
         return db_favorite
 
     async def delete_all_favorites_task(self, task_id: str):

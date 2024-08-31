@@ -8,6 +8,8 @@ import models
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
+from vector_store import vector_store
+from tqdm import tqdm
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,10 @@ async def lifespan(app: FastAPI):
         # Clear all tasks
         db.query(models.Task).delete()
         db.commit() 
+
+        # Initialize vector store with existing favorites
+        favorites = db.query(models.Favorite).all()
+        vector_store.populate_from_database(favorites)
         
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")

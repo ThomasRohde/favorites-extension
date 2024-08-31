@@ -1,6 +1,6 @@
 # favorites_router.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
@@ -11,12 +11,13 @@ import schemas
 from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
 from models import Task, FavoriteToProcess
+from vector_store import vector_store
 
 router = APIRouter()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+    
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate):
     try:
@@ -130,3 +131,18 @@ async def import_favorites(favorites: List[schemas.FavoriteImport]):
     except Exception as e:
         logger.error(f"Unexpected error during import: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/search/vector", response_model=List[schemas.Favorite])
+async def vector_search_favorites(
+    query: str = Query(..., description="The search query"),
+    limit: int = Query(10, ge=1, le=100, description="The maximum number of results to return"),
+    db: Session = Depends(get_db)
+):
+    try:
+        search_results = vector_store.search_favorites(query, limit)
+        favorite_ids = [result["id"] for result in search_results]
+        favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        return favorites
+    except Exception as e:
+        logger.error(f"Error searching favorites: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while searching favorites")

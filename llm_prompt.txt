@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (32%), Markdown (11%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (33%), Markdown (11%), JSON (6%), HTML (2%), JavaScript (2%) and uses the following technology stack: Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -63,6 +63,8 @@ import models
 from favorites_router import router as favorites_router
 from folders_router import router as folders_router
 from tags_router import router as tags_router
+from vector_store import vector_store
+from tqdm import tqdm
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +78,10 @@ async def lifespan(app: FastAPI):
         # Clear all tasks
         db.query(models.Task).delete()
         db.commit() 
+
+        # Initialize vector store with existing favorites
+        favorites = db.query(models.Favorite).all()
+        vector_store.populate_from_database(favorites)
         
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
@@ -1252,7 +1258,7 @@ File: server\favorites_router.py
 
 # favorites_router.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
@@ -1263,12 +1269,13 @@ import schemas
 from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
 from models import Task, FavoriteToProcess
+from vector_store import vector_store
 
 router = APIRouter()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+    
 @router.post("/", response_model=Dict[str, str])
 async def create_favorite(favorite: schemas.FavoriteCreate):
     try:
@@ -1382,6 +1389,22 @@ async def import_favorites(favorites: List[schemas.FavoriteImport]):
     except Exception as e:
         logger.error(f"Unexpected error during import: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/search/vector", response_model=List[schemas.Favorite])
+async def vector_search_favorites(
+    query: str = Query(..., description="The search query"),
+    limit: int = Query(10, ge=1, le=100, description="The maximum number of results to return"),
+    db: Session = Depends(get_db)
+):
+    try:
+        search_results = vector_store.search_favorites(query, limit)
+        favorite_ids = [result["id"] for result in search_results]
+        favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        return favorites
+    except Exception as e:
+        logger.error(f"Error searching favorites: {str(e)}")
+        raise HTTPException(status_code=500, detail="An error occurred while searching favorites")
+
 
 ---
 
@@ -2412,6 +2435,7 @@ import os
 from content_extractor import ContentExtractor
 from typing import List
 import math
+from vector_store import vector_store
 
 builtins.print = rprint
 
@@ -2469,6 +2493,10 @@ class FavoriteService:
                 db_favorite.tags.append(tag)
 
             db.commit()
+
+            # Add or update the favorite in the vector store
+            vector_store.add_favorite(db_favorite.id, db_favorite.url, db_favorite.title, db_favorite.summary)
+
             return db_favorite.id
         except Exception as e:
             logger.error(f"Error creating favorite: {str(e)}")
@@ -2488,6 +2516,9 @@ class FavoriteService:
             task_queue._update_task(task_id, "failed", "0", str(e))
         finally:
             loop.close()
+
+    def get_favorites_by_ids(self, db: Session, favorite_ids: List[int]) -> List[models.Favorite]:
+            return db.query(models.Favorite).filter(models.Favorite.id.in_(favorite_ids)).all()
 
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
@@ -2517,6 +2548,10 @@ class FavoriteService:
                 setattr(db_favorite, key, value)
             db.commit()
             db.refresh(db_favorite)
+
+             # Update the favorite in the vector store
+            vector_store.update_favorite(db_favorite.id, db_favorite.url, db_favorite.title, db_favorite.summary)
+
         return db_favorite
 
     def delete_favorite(
@@ -2528,6 +2563,10 @@ class FavoriteService:
         if db_favorite:
             db.delete(db_favorite)
             db.commit()
+
+            # Delete the favorite from the vector store
+            vector_store.delete_favorite(favorite_id)
+            
         return db_favorite
 
     async def delete_all_favorites_task(self, task_id: str):
