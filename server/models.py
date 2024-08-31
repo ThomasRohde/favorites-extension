@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.sql import func
 from database import Base
 
@@ -17,8 +17,8 @@ class Folder(Base):
     name = Column(String, nullable=False)
     parent_id = Column(Integer, ForeignKey('folders.id'))
     description = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     parent = relationship('Folder', remote_side=[id], back_populates='children')
     children = relationship('Folder', back_populates='parent')
@@ -32,8 +32,8 @@ class Favorite(Base):
     title = Column(String)
     summary = Column(Text)
     folder_id = Column(Integer, ForeignKey('folders.id'))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     folder = relationship('Folder', back_populates='favorites')
     tags = relationship('Tag', secondary=favorite_tags, back_populates='favorites')
@@ -54,8 +54,8 @@ class FavoriteToProcess(Base):
     title = Column(String)
     metainfo = Column(String)
     processed = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class Task(Base):
     __tablename__ = 'tasks'
@@ -65,5 +65,5 @@ class Task(Base):
     status = Column(String, nullable=False)
     progress = Column(String, nullable=False)
     result = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
