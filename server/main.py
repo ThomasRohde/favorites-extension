@@ -10,6 +10,7 @@ from folders_router import router as folders_router
 from tags_router import router as tags_router
 from vector_store import vector_store
 from tqdm import tqdm
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +26,8 @@ async def lifespan(app: FastAPI):
         db.commit() 
 
         # Initialize vector store with existing favorites
-        favorites = db.query(models.Favorite).all()
-        vector_store.populate_from_database(favorites)
+        # favorites = db.query(models.Favorite).all()
+        # vector_store.populate_from_database(favorites)
         
     except Exception as e:
         logger.error(f"Error during startup: {str(e)}")
@@ -103,4 +104,13 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the Intelligent Favorites Extension API")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True, reload_includes="*.py", log_level="warning") 
+    chroma_db_path = os.path.abspath("chroma_db")
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
+        reload_includes="*.py",
+        reload_excludes=[chroma_db_path],
+        log_level="info"
+)

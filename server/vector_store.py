@@ -1,31 +1,40 @@
 import chromadb
 from chromadb.config import Settings
 from chromadb.utils import embedding_functions
+import os
 from tqdm import tqdm
-import logging
-
-logger = logging.getLogger(__name__)
 
 class VectorStore:
-    _instance = None
+    def __init__(self):
+        # Use a persistent directory for the database
+        persist_directory = "chroma_db"
+        if not os.path.exists(persist_directory):
+            os.makedirs(persist_directory)
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(VectorStore, cls).__new__(cls)
-            cls._instance.initialize()
-        return cls._instance
+        self.client = chromadb.PersistentClient(path=persist_directory)
 
-    def initialize(self):
-        self.client = chromadb.Client(Settings(is_persistent=False))
-        self.collection = self.client.create_collection("favorites")
-        self.embedding_function = embedding_functions.DefaultEmbeddingFunction()
+        self.collection = self.client.get_or_create_collection(
+            name="favorites_embeddings",
+            embedding_function=embedding_functions.DefaultEmbeddingFunction()
+        )
 
     def add_favorite(self, id, url, title, summary):
-        self.collection.add(
-            ids=[str(id)],
-            documents=[summary],
-            metadatas=[{"url": url, "title": title}]
-        )
+        # Check if the document already exists
+        existing_docs = self.collection.get(ids=[str(id)])
+        if existing_docs['ids']:
+            # Update the existing document
+            self.collection.update(
+                ids=[str(id)],
+                documents=[summary],
+                metadatas=[{"url": url, "title": title}]
+            )
+        else:
+            # Add a new document
+            self.collection.add(
+                ids=[str(id)],
+                documents=[summary],
+                metadatas=[{"url": url, "title": title}]
+            )
 
     def update_favorite(self, id, url, title, summary):
         self.collection.update(
@@ -47,18 +56,21 @@ class VectorStore:
                 "id": int(id),
                 "url": metadata["url"],
                 "title": metadata["title"],
-                "distance": distance
+                "summary": document
             }
-            for id, metadata, distance in zip(results["ids"][0], results["metadatas"][0], results["distances"][0])
+            for id, metadata, document in zip(results['ids'][0], results['metadatas'][0], results['documents'][0])
         ]
 
     def populate_from_database(self, favorites):
         total_favorites = len(favorites)
-        logger.info(f"Initializing vector store with {total_favorites} favorites")
-        
-        for favorite in tqdm(favorites, total=total_favorites, desc="Adding favorites to vector store"):
-            self.add_favorite(favorite.id, favorite.url, favorite.title, favorite.summary)
-        
-        logger.info(f"Vector store initialization complete")
+        for favorite in tqdm(favorites, total=total_favorites, desc="Populating vector store", unit="favorite"):
+            # Check if the document already exists
+            existing_docs = self.collection.get(ids=[str(favorite.id)])
+            if existing_docs['ids']:
+                # Update the existing document
+                self.update_favorite(favorite.id, favorite.url, favorite.title, favorite.summary)
+            else:
+                # Add a new document
+                self.add_favorite(favorite.id, favorite.url, favorite.title, favorite.summary)
 
 vector_store = VectorStore()
