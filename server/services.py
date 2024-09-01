@@ -134,13 +134,29 @@ class FavoriteService:
             db.query(models.Favorite).filter(models.Favorite.id == favorite_id).first()
         )
         if db_favorite:
-            update_data = favorite.dict(exclude_unset=True)
+            update_data = favorite.model_dump(exclude_unset=True)
+            
+            # Handle tags separately
+            if 'tags' in update_data:
+                new_tags = update_data.pop('tags')
+                # Clear existing tags
+                db_favorite.tags.clear()
+                # Add new tags
+                for tag_name in new_tags:
+                    tag = db.query(models.Tag).filter(models.Tag.name == tag_name).first()
+                    if not tag:
+                        tag = models.Tag(name=tag_name)
+                        db.add(tag)
+                    db_favorite.tags.append(tag)
+            
+            # Update other fields
             for key, value in update_data.items():
                 setattr(db_favorite, key, value)
+            
             db.commit()
             db.refresh(db_favorite)
 
-             # Update the favorite in the vector store
+            # Update the favorite in the vector store
             vector_store.update_favorite(db_favorite.id, db_favorite.url, db_favorite.title, db_favorite.summary)
 
         return db_favorite
