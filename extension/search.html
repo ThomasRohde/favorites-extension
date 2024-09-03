@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Favorites</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 100%;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            color: #333;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #0078d4;
+        }
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #106ebe;
+        }
+        #results {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 10px; /* Add padding to create space between cards and scrollbar */
+        }
+        .favorite-item {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .favorite-item h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #0078d4;
+        }
+        .favorite-item p {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        .favorite-item a {
+            color: #0078d4;
+            text-decoration: none;
+        }
+        .favorite-item a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Favorites</h1>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Enter search query">
+        <button id="searchButton">Search</button>
+    </div>
+    <div id="results"></div>
+    <script src="search.js"></script>
+</body>
+</html>

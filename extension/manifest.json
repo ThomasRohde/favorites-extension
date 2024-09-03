@@ -19,5 +19,11 @@
     "24": "icons8-favorite-dark-24.png",
     "48": "icons8-favorite-dark-48.png",
     "96": "icons8-favorite-dark-96.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["search.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

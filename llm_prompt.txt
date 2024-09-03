@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (35%), Markdown (11%), JSON (5%), HTML (2%), JavaScript (2%) and uses the following technology stack: Docker, Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (33%), Markdown (11%), JSON (5%), HTML (4%), JavaScript (4%) and uses the following technology stack: Docker, Git, HTML, JSON, JavaScript, Markdown, Python.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -384,7 +384,13 @@ File: extension\manifest.json
     "24": "icons8-favorite-dark-24.png",
     "48": "icons8-favorite-dark-48.png",
     "96": "icons8-favorite-dark-96.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["search.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
 
 ---
@@ -446,6 +452,7 @@ File: extension\popup.html
     <h1>Add Favorite</h1>
     <input type="text" id="titleInput" placeholder="Title">
     <button id="addButton">Add Favorite</button>
+    <button id="searchButton">Search Favorites</button>
     <div id="message"></div>
     <script src="popup.js"></script>
 </body>
@@ -460,6 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let currentTab = tabs[0];
         document.getElementById('titleInput').value = currentTab.title;
     });
+    document.getElementById("searchButton").addEventListener("click", openSearchDialog);
 });
 
 function formatMetaInfoForLLM(metaInfo) {
@@ -568,6 +576,20 @@ document.getElementById("addButton").addEventListener("click", async () => {
         }
     );
 });
+
+function openSearchDialog() {
+    chrome.windows.create({
+        url: chrome.runtime.getURL("search.html"),
+        type: "popup",
+        width: 400,
+        height: 600
+    }, function(window) {
+        // Close the main extension popup
+        window.chrome.windows.getCurrent(function(currentWindow) {
+            chrome.windows.remove(currentWindow.id);
+        });
+    });
+}
 
 ---
 

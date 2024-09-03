@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let currentTab = tabs[0];
         document.getElementById('titleInput').value = currentTab.title;
     });
+    document.getElementById("searchButton").addEventListener("click", openSearchDialog);
 });
 
 function formatMetaInfoForLLM(metaInfo) {
@@ -111,3 +112,17 @@ document.getElementById("addButton").addEventListener("click", async () => {
         }
     );
 });
+
+function openSearchDialog() {
+    chrome.windows.create({
+        url: chrome.runtime.getURL("search.html"),
+        type: "popup",
+        width: 400,
+        height: 600
+    }, function(window) {
+        // Close the main extension popup
+        window.chrome.windows.getCurrent(function(currentWindow) {
+            chrome.windows.remove(currentWindow.id);
+        });
+    });
+}
