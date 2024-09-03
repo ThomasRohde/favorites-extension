@@ -5,9 +5,10 @@ from sqlalchemy.orm import sessionmaker
 import os
 from tqdm import tqdm
 
+persist_directory = os.environ.get('CHROMA_DIR', './chroma_db')
+
 class VectorStore:
     def __init__(self):
-        persist_directory = "./chroma_db"
         self.chroma_client = chromadb.PersistentClient(path=persist_directory)
         self.collection = self.chroma_client.get_or_create_collection(
             name="favorites_embeddings",

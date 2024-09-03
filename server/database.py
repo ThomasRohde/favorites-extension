@@ -1,9 +1,13 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
 
-# SQLite database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./favorites.db"
+# Get the SQLite database directory from the environment variable
+sqlite_dir = os.environ.get('SQLITE_DIR', '.')
+database_url = f"sqlite:///{sqlite_dir}/favorites.db"
+
+SQLALCHEMY_DATABASE_URL = database_url
 
 # Create SQLAlchemy engine
 engine = create_engine(

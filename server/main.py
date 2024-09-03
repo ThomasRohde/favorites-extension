@@ -182,8 +182,8 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
-        reload_includes="*.py",
-        reload_excludes=[chroma_db_path],
+        # reload=False,
+        # reload_includes="*.py",
+        # reload_excludes=[chroma_db_path],
         log_level="info"
     )
