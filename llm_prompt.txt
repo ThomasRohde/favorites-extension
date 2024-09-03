@@ -1,7 +1,7 @@
 # Project: favorites-extension
 
 ## Overview
-This project is primarily written in Python (33%), Markdown (11%), JSON (5%), HTML (4%), JavaScript (4%) and uses the following technology stack: Docker, Git, HTML, JSON, JavaScript, Markdown, Python.
+This project is primarily written in Python (31%), Markdown (10%), JSON (5%), HTML (5%), JavaScript (3%) and uses the following technology stack: Docker, Git, HTML, JSON, JavaScript, Markdown, Python, SQLite.
 
 ## Dependencies
 The main dependencies for this project are: No recognized dependency file found
@@ -72,6 +72,9 @@ import json
 import schemas
 from services import favorite_service
 from task_queue import task_queue
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory="templates")
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -1119,7 +1122,8 @@ File: server\favorites_router.py
 
 # favorites_router.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
@@ -1131,6 +1135,11 @@ from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
 from models import Task, FavoriteToProcess
 from vector_store import vector_store
+from fastapi.templating import Jinja2Templates
+from rich import print as rprint
+import builtins
+
+builtins.print = rprint
 
 router = APIRouter()
 
@@ -1261,11 +1270,34 @@ async def vector_search_favorites(
         search_results = vector_store.search_favorites(query, limit)
         favorite_ids = [result["id"] for result in search_results]
         favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        print(favorites)
         return favorites
     except Exception as e:
         logger.error(f"Error searching favorites: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while searching favorites")
 
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+
+@router.get("/search/html", response_class=HTMLResponse)
+async def html_search_favorites(
+    request: Request,
+    query: str = Query(..., description="The search query"),
+    limit: int = Query(10, ge=1, le=100, description="The maximum number of results to return"),
+    db: Session = Depends(get_db)
+):
+    try:
+        search_results = vector_store.search_favorites(query, limit)
+        favorite_ids = [result["id"] for result in search_results]
+        favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        return templates.TemplateResponse("search_results.html", {
+            "request": request,
+            "favorites": favorites,
+            "query": query
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred while searching favorites: {str(e)}")
 
 ---
 
@@ -2269,7 +2301,7 @@ FolderWithChildren.model_rebuild()
 File: server\services.py
 
 # services.py
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 import models, schemas
@@ -2379,7 +2411,20 @@ class FavoriteService:
             loop.close()
 
     def get_favorites_by_ids(self, db: Session, favorite_ids: List[int]) -> List[models.Favorite]:
-            return db.query(models.Favorite).filter(models.Favorite.id.in_(favorite_ids)).all()
+        # Create a case statement for ordering
+        # Use negative index to reverse the order
+        order = case(
+            {id_: -index for index, id_ in enumerate(favorite_ids)},
+            value=models.Favorite.id
+        )
+        
+        # Query favorites and order them
+        favorites = (db.query(models.Favorite)
+                    .filter(models.Favorite.id.in_(favorite_ids))
+                    .order_by(order)
+                    .all())
+        
+        return favorites
 
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(

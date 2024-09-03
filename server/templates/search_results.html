@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results for "{{ query }}"</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .favorite {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .favorite h2 {
+            margin-top: 0;
+            color: #3498db;
+        }
+        .favorite a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .favorite a:hover {
+            text-decoration: underline;
+        }
+        .favorite p {
+            margin-bottom: 10px;
+        }
+        .tags {
+            margin-top: 10px;
+        }
+        .tag {
+            background-color: #e74c3c;
+            color: white;
+            padding: 3px 7px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Results for "{{ query }}"</h1>
+    {% if favorites %}
+        {% for favorite in favorites %}
+            <div class="favorite">
+                <h2><a href="{{ favorite.url }}" target="_blank">{{ favorite.title }}</a></h2>
+                <p>{{ favorite.summary }}</p>
+                <div class="tags">
+                    {% for tag in favorite.tags %}
+                        <span class="tag">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No results found for "{{ query }}"</p>
+    {% endif %}
+</body>
+</html>

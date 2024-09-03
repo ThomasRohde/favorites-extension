@@ -1,6 +1,7 @@
 # favorites_router.py
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict
@@ -12,6 +13,11 @@ from services import favorite_service, folder_service, nlp_service
 from task_queue import task_queue
 from models import Task, FavoriteToProcess
 from vector_store import vector_store
+from fastapi.templating import Jinja2Templates
+from rich import print as rprint
+import builtins
+
+builtins.print = rprint
 
 router = APIRouter()
 
@@ -142,7 +148,31 @@ async def vector_search_favorites(
         search_results = vector_store.search_favorites(query, limit)
         favorite_ids = [result["id"] for result in search_results]
         favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        print(favorites)
         return favorites
     except Exception as e:
         logger.error(f"Error searching favorites: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred while searching favorites")
+
+
+# Initialize Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+
+@router.get("/search/html", response_class=HTMLResponse)
+async def html_search_favorites(
+    request: Request,
+    query: str = Query(..., description="The search query"),
+    limit: int = Query(10, ge=1, le=100, description="The maximum number of results to return"),
+    db: Session = Depends(get_db)
+):
+    try:
+        search_results = vector_store.search_favorites(query, limit)
+        favorite_ids = [result["id"] for result in search_results]
+        favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
+        return templates.TemplateResponse("search_results.html", {
+            "request": request,
+            "favorites": favorites,
+            "query": query
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred while searching favorites: {str(e)}")

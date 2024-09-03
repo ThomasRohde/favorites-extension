@@ -4,6 +4,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
 from tqdm import tqdm
+from rich import print as rprint
+import builtins
+
+builtins.print = rprint
 
 persist_directory = os.environ.get('CHROMA_DIR', './chroma_db')
 
@@ -156,7 +160,6 @@ class VectorStore:
                 x["fts_rank"] or float('inf')  # Lower fts_rank is better
             )
         )
-        
         return sorted_results[:limit]
 
 vector_store = VectorStore()

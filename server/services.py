@@ -1,5 +1,5 @@
 # services.py
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 import models, schemas
@@ -109,7 +109,20 @@ class FavoriteService:
             loop.close()
 
     def get_favorites_by_ids(self, db: Session, favorite_ids: List[int]) -> List[models.Favorite]:
-            return db.query(models.Favorite).filter(models.Favorite.id.in_(favorite_ids)).all()
+        # Create a case statement for ordering
+        # Use negative index to reverse the order
+        order = case(
+            {id_: -index for index, id_ in enumerate(favorite_ids)},
+            value=models.Favorite.id
+        )
+        
+        # Query favorites and order them
+        favorites = (db.query(models.Favorite)
+                    .filter(models.Favorite.id.in_(favorite_ids))
+                    .order_by(order)
+                    .all())
+        
+        return favorites
 
     def create_favorite(self, favorite: schemas.FavoriteCreate, task_name: str):
         task_id = task_queue.add_task(
