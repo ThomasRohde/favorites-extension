@@ -148,7 +148,6 @@ async def vector_search_favorites(
         search_results = vector_store.search_favorites(query, limit)
         favorite_ids = [result["id"] for result in search_results]
         favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
-        print(favorites)
         return favorites
     except Exception as e:
         logger.error(f"Error searching favorites: {str(e)}")

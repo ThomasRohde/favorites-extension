@@ -11,8 +11,9 @@ The Intelligent Favorites Extension is a sophisticated browser extension designe
 - **Smart Folder Organization**: Recommends appropriate folders for new bookmarks based on their content.
 - **Semantic Search**: Enables users to find bookmarks using natural language queries.
 - **Browser Integration**: Seamlessly integrates with Microsoft Edge as a browser extension.
-- **Web Interface**: Provides a user-friendly web interface for managing bookmarks, folders, and tags.
 - **API Backend**: Powered by a robust FastAPI backend for efficient data management and processing.
+- **Docker Support**: Easy deployment using Docker containers.
+- **Persistence**: Uses SQLite for structured data and Chroma.db for vector embeddings, with configurable data directories.
 
 ## System Architecture
 
@@ -22,9 +23,9 @@ The system consists of two main components:
    - Framework: FastAPI
    - Database: SQLite (structured data) and Chroma.db (vector embeddings)
    - NLP Models: 
-     - LLM: phi3.5 (via Ollama) for chat completion and summarization
+     - LLM: Claude 3 Haiku (via Anthropic API) for chat completion and summarization
      - Embeddings: nomic-embed-text (via Ollama) for semantic search and clustering
-   - Deployment: Windows Service
+   - Deployment: Docker container
 
 2. **Frontend Extension** (Microsoft Edge Extension)
    - Technologies: HTML, CSS, JavaScript
@@ -40,20 +41,26 @@ The system consists of two main components:
    cd intelligent-favorites
    ```
 
-2. Install required Python packages:
+2. Build the Docker image:
    ```
-   pip install -r requirements.txt
-   ```
-
-3. Initialize the database:
-   ```
-   python initDB.py
+   docker build -t intelligent-favorites-server .
    ```
 
-4. Start the FastAPI server:
+3. Run the Docker container:
    ```
-   uvicorn main:app --reload
+   docker run -d --name intelligent-favorites-server \
+     -p 8000:8000 \
+     -v ${HOME}/Favorites/sqlite:/data/sqlite \
+     -v ${HOME}/Favorites/chroma:/data/chroma \
+     -e SQLITE_DIR=/data/sqlite \
+     -e CHROMA_DIR=/data/chroma \
+     -e ANTHROPIC_API_KEY=your_api_key_here \
+     intelligent-favorites-server
    ```
+
+   Replace `your_api_key_here` with your actual Anthropic API key.
+
+4. The API will be available at `http://localhost:8000`.
 
 ### Extension Setup
 
@@ -90,6 +97,16 @@ The system consists of two main components:
   pytest api_test.py
   ```
 
+### Docker Management
+
+For easier Docker container management, you can use the provided PowerShell script:
+
+```powershell
+.\runfs.ps1
+```
+
+This script automates the process of stopping the existing container, removing it, rebuilding the image, and starting a new container.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -102,9 +119,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Icons provided by [Icons8](https://icons8.com)
 - NLP models and services:
+  - [Anthropic](https://www.anthropic.com/) - Claude 3 Haiku for advanced AI processing
   - [Ollama](https://ollama.ai/) - Local LLM inference
-  - [OpenAI](https://openai.com/) - Cloud-based LLM services
-  - [Anthropic](https://www.anthropic.com/) - Advanced AI models including Claude
 - Frontend libraries:
   - [React](https://reactjs.org/)
   - [Tailwind CSS](https://tailwindcss.com/)

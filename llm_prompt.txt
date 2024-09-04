@@ -39,7 +39,8 @@ The following is a concise directory tree of the project, limited to 3 levels de
 │   ├── manifest.json
 │   ├── popup.html
 │   └── popup.js
-└── Dockerfile
+├── Dockerfile
+└── runfs.ps1
 
 
 ## Selected Files
@@ -264,8 +265,9 @@ The Intelligent Favorites Extension is a sophisticated browser extension designe
 - **Smart Folder Organization**: Recommends appropriate folders for new bookmarks based on their content.
 - **Semantic Search**: Enables users to find bookmarks using natural language queries.
 - **Browser Integration**: Seamlessly integrates with Microsoft Edge as a browser extension.
-- **Web Interface**: Provides a user-friendly web interface for managing bookmarks, folders, and tags.
 - **API Backend**: Powered by a robust FastAPI backend for efficient data management and processing.
+- **Docker Support**: Easy deployment using Docker containers.
+- **Persistence**: Uses SQLite for structured data and Chroma.db for vector embeddings, with configurable data directories.
 
 ## System Architecture
 
@@ -275,9 +277,9 @@ The system consists of two main components:
    - Framework: FastAPI
    - Database: SQLite (structured data) and Chroma.db (vector embeddings)
    - NLP Models: 
-     - LLM: phi3.5 (via Ollama) for chat completion and summarization
+     - LLM: Claude 3 Haiku (via Anthropic API) for chat completion and summarization
      - Embeddings: nomic-embed-text (via Ollama) for semantic search and clustering
-   - Deployment: Windows Service
+   - Deployment: Docker container
 
 2. **Frontend Extension** (Microsoft Edge Extension)
    - Technologies: HTML, CSS, JavaScript
@@ -293,20 +295,26 @@ The system consists of two main components:
    cd intelligent-favorites
    ```
 
-2. Install required Python packages:
+2. Build the Docker image:
    ```
-   pip install -r requirements.txt
-   ```
-
-3. Initialize the database:
-   ```
-   python initDB.py
+   docker build -t intelligent-favorites-server .
    ```
 
-4. Start the FastAPI server:
+3. Run the Docker container:
    ```
-   uvicorn main:app --reload
+   docker run -d --name intelligent-favorites-server \
+     -p 8000:8000 \
+     -v ${HOME}/Favorites/sqlite:/data/sqlite \
+     -v ${HOME}/Favorites/chroma:/data/chroma \
+     -e SQLITE_DIR=/data/sqlite \
+     -e CHROMA_DIR=/data/chroma \
+     -e ANTHROPIC_API_KEY=your_api_key_here \
+     intelligent-favorites-server
    ```
+
+   Replace `your_api_key_here` with your actual Anthropic API key.
+
+4. The API will be available at `http://localhost:8000`.
 
 ### Extension Setup
 
@@ -343,6 +351,16 @@ The system consists of two main components:
   pytest api_test.py
   ```
 
+### Docker Management
+
+For easier Docker container management, you can use the provided PowerShell script:
+
+```powershell
+.\runfs.ps1
+```
+
+This script automates the process of stopping the existing container, removing it, rebuilding the image, and starting a new container.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -355,9 +373,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Icons provided by [Icons8](https://icons8.com)
 - NLP models and services:
+  - [Anthropic](https://www.anthropic.com/) - Claude 3 Haiku for advanced AI processing
   - [Ollama](https://ollama.ai/) - Local LLM inference
-  - [OpenAI](https://openai.com/) - Cloud-based LLM services
-  - [Anthropic](https://www.anthropic.com/) - Advanced AI models including Claude
 - Frontend libraries:
   - [React](https://reactjs.org/)
   - [Tailwind CSS](https://tailwindcss.com/)
@@ -1270,7 +1287,6 @@ async def vector_search_favorites(
         search_results = vector_store.search_favorites(query, limit)
         favorite_ids = [result["id"] for result in search_results]
         favorites = favorite_service.get_favorites_by_ids(db, favorite_ids)
-        print(favorites)
         return favorites
     except Exception as e:
         logger.error(f"Error searching favorites: {str(e)}")
@@ -3851,6 +3867,146 @@ with open(vector_store_file, 'w') as file:
     file.write(new_content)
 
 print(f"Chroma database path updated to: {chroma_dir}")
+
+---
+
+File: runfs.ps1
+
+# Docker Container Management Script
+
+# Define variables
+$containerName = "intelligent-favorites-server"
+$imageName = "intelligent-favorites-server"
+$dockerfilePath = "."  # Adjust this if your Dockerfile is in a different directory
+$logFile = "docker_management.log"
+
+# Initialize logging
+function Write-Log {
+    param(
+        [string]$Message
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp - $Message" | Out-File -Append -FilePath $logFile
+    Write-Host $Message
+}
+
+# Function to check if Docker is running
+function Test-DockerRunning {
+    try {
+        $null = docker info
+        return $true
+    }
+    catch {
+        Write-Log "Error: Docker is not running or not accessible."
+        return $false
+    }
+}
+
+# Function to stop the container
+function Stop-Container {
+    if (docker ps -q -f name=$containerName) {
+        Write-Log "Stopping container $containerName..."
+        docker stop $containerName
+        if ($?) {
+            Write-Log "Container stopped successfully."
+        }
+        else {
+            Write-Log "Failed to stop container."
+        }
+    }
+    else {
+        Write-Log "Container $containerName is not running."
+    }
+}
+
+# Function to remove the container
+function Remove-Container {
+    if (docker ps -a -q -f name=$containerName) {
+        Write-Log "Removing container $containerName..."
+        docker rm $containerName
+        if ($?) {
+            Write-Log "Container removed successfully."
+        }
+        else {
+            Write-Log "Failed to remove container."
+        }
+    }
+    else {
+        Write-Log "Container $containerName does not exist."
+    }
+}
+
+# Function to remove the image
+function Remove-Image {
+    if (docker images -q $imageName) {
+        Write-Log "Removing image $imageName..."
+        docker rmi $imageName
+        if ($?) {
+            Write-Log "Image removed successfully."
+        }
+        else {
+            Write-Log "Failed to remove image."
+        }
+    }
+    else {
+        Write-Log "Image $imageName does not exist."
+    }
+}
+
+# Function to build the image
+function Build-Image {
+    Write-Log "Building image $imageName..."
+    docker build -t $imageName $dockerfilePath
+    if ($?) {
+        Write-Log "Image built successfully."
+    }
+    else {
+        Write-Log "Failed to build image."
+        exit 1
+    }
+}
+
+# Function to start the container
+function Start-Container {
+    Write-Log "Starting container $containerName..."
+    docker run -d --name $containerName `
+        -p 8000:8000 `
+        -v "${HOME}/Favorites/sqlite:/data/sqlite" `
+        -v "${HOME}/Favorites/chroma:/data/chroma" `
+        -e SQLITE_DIR=/data/sqlite `
+        -e CHROMA_DIR=/data/chroma `
+        -e ANTHROPIC_API_KEY=$env:ANTHROPIC_API_KEY `
+        $imageName
+    if ($?) {
+        Write-Log "Container started successfully."
+    }
+    else {
+        Write-Log "Failed to start container."
+        exit 1
+    }
+}
+
+# Main execution
+Write-Log "Starting Docker management script..."
+
+if (-not (Test-DockerRunning)) {
+    exit 1
+}
+
+# Confirm before proceeding
+$confirm = Read-Host "This script will stop, remove, rebuild, and restart the $containerName container. Do you want to proceed? (y/n)"
+if ($confirm -ne "y") {
+    Write-Log "Operation cancelled by user."
+    exit 0
+}
+
+Stop-Container
+Remove-Container
+Remove-Image
+Build-Image
+Start-Container
+
+Write-Log "Docker management script completed."
 
 ---
 
