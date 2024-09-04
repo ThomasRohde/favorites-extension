@@ -102,10 +102,21 @@ The system consists of two main components:
 For easier Docker container management, you can use the provided PowerShell script:
 
 ```powershell
+# Default: Run the container if it's not running
 .\runfs.ps1
+
+# Build the image without running the container
+.\runfs.ps1 -Build
+
+# Rebuild the image and restart the container
+.\runfs.ps1 -Rebuild
 ```
 
-This script automates the process of stopping the existing container, removing it, rebuilding the image, and starting a new container.
+This script provides the following options:
+
+- Default (no parameters): Starts the container if it's not running. If the image doesn't exist, it builds it first.
+- `-Build`: Only builds the Docker image without starting the container.
+- `-Rebuild`: Stops the existing container, removes it, rebuilds the image, and starts a new container.
 
 ## Contributing
 

@@ -356,10 +356,21 @@ The system consists of two main components:
 For easier Docker container management, you can use the provided PowerShell script:
 
 ```powershell
+# Default: Run the container if it's not running
 .\runfs.ps1
+
+# Build the image without running the container
+.\runfs.ps1 -Build
+
+# Rebuild the image and restart the container
+.\runfs.ps1 -Rebuild
 ```
 
-This script automates the process of stopping the existing container, removing it, rebuilding the image, and starting a new container.
+This script provides the following options:
+
+- Default (no parameters): Starts the container if it's not running. If the image doesn't exist, it builds it first.
+- `-Build`: Only builds the Docker image without starting the container.
+- `-Rebuild`: Stops the existing container, removes it, rebuilds the image, and starts a new container.
 
 ## Contributing
 
@@ -3902,9 +3913,15 @@ function Test-DockerRunning {
     }
 }
 
+# Function to check if the container is running
+function Test-ContainerRunning {
+    $running = docker ps -q -f name=$containerName
+    return [bool]$running
+}
+
 # Function to stop the container
 function Stop-Container {
-    if (docker ps -q -f name=$containerName) {
+    if (Test-ContainerRunning) {
         Write-Log "Stopping container $containerName..."
         docker stop $containerName
         if ($?) {
@@ -3993,18 +4010,38 @@ if (-not (Test-DockerRunning)) {
     exit 1
 }
 
-# Confirm before proceeding
-$confirm = Read-Host "This script will stop, remove, rebuild, and restart the $containerName container. Do you want to proceed? (y/n)"
-if ($confirm -ne "y") {
-    Write-Log "Operation cancelled by user."
-    exit 0
-}
+# Parse command line arguments
+param(
+    [switch]$Build,
+    [switch]$Rebuild
+)
 
-Stop-Container
-Remove-Container
-Remove-Image
-Build-Image
-Start-Container
+if ($Build) {
+    # Only build the image
+    Build-Image
+}
+elseif ($Rebuild) {
+    # Stop, remove, rebuild, and restart
+    Stop-Container
+    Remove-Container
+    Remove-Image
+    Build-Image
+    Start-Container
+}
+else {
+    # Default behavior: run the container if it's not running
+    if (-not (Test-ContainerRunning)) {
+        # Check if the image exists
+        if (-not (docker images -q $imageName)) {
+            Write-Log "Image $imageName does not exist. Building..."
+            Build-Image
+        }
+        Start-Container
+    }
+    else {
+        Write-Log "Container $containerName is already running."
+    }
+}
 
 Write-Log "Docker management script completed."
 

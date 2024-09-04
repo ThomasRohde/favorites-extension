@@ -28,9 +28,15 @@ function Test-DockerRunning {
     }
 }
 
+# Function to check if the container is running
+function Test-ContainerRunning {
+    $running = docker ps -q -f name=$containerName
+    return [bool]$running
+}
+
 # Function to stop the container
 function Stop-Container {
-    if (docker ps -q -f name=$containerName) {
+    if (Test-ContainerRunning) {
         Write-Log "Stopping container $containerName..."
         docker stop $containerName
         if ($?) {
@@ -119,17 +125,37 @@ if (-not (Test-DockerRunning)) {
     exit 1
 }
 
-# Confirm before proceeding
-$confirm = Read-Host "This script will stop, remove, rebuild, and restart the $containerName container. Do you want to proceed? (y/n)"
-if ($confirm -ne "y") {
-    Write-Log "Operation cancelled by user."
-    exit 0
-}
+# Parse command line arguments
+param(
+    [switch]$Build,
+    [switch]$Rebuild
+)
 
-Stop-Container
-Remove-Container
-Remove-Image
-Build-Image
-Start-Container
+if ($Build) {
+    # Only build the image
+    Build-Image
+}
+elseif ($Rebuild) {
+    # Stop, remove, rebuild, and restart
+    Stop-Container
+    Remove-Container
+    Remove-Image
+    Build-Image
+    Start-Container
+}
+else {
+    # Default behavior: run the container if it's not running
+    if (-not (Test-ContainerRunning)) {
+        # Check if the image exists
+        if (-not (docker images -q $imageName)) {
+            Write-Log "Image $imageName does not exist. Building..."
+            Build-Image
+        }
+        Start-Container
+    }
+    else {
+        Write-Log "Container $containerName is already running."
+    }
+}
 
 Write-Log "Docker management script completed."
